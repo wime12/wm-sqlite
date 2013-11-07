@@ -1,3 +1,4 @@
+;;;; -*- coding: utf-8-unix -*-
 ;;;; wm-sqlite-ffi.lisp.newest
 
 (in-package #:wm-sqlite)

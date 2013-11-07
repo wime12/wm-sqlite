@@ -1,3 +1,4 @@
+;;;; -*- coding: utf-8-unix -*-
 ;;;; package.lisp.newest
 
 (defpackage #:wm-sqlite

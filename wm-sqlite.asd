@@ -1,4 +1,4 @@
-
+;;;; -*- coding: utf-8-unix -*-
 ;;;; wm-sqlite.asd.newest
 
 (asdf:defsystem #:wm-sqlite

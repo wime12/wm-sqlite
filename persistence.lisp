@@ -1,3 +1,5 @@
+;;;; -*- coding: utf-8-unix -*-
+
 (in-package #:wm-sqlite)
 
 ;;; Utilities
