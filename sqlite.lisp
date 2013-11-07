@@ -30,10 +30,6 @@
 	handle
 	(error (make-condition 'database-closed-error :database instance)))))
 
-(defmethod initialize-instance :after ((instance database) &rest initargs
-				&key &allow-other-keys)
-  (declare (ignore initargs))
-  #+nil(sqlite3-extended-result-codes (handle instance) t))
 
 ;; SQLite Errors
 
