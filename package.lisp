@@ -69,6 +69,7 @@
    #:sql-template
    #:ls
    #:cn
+   #:tn
 
    ;; Persistent Objects
    #:sqlite-persistent-class

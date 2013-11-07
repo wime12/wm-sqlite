@@ -86,3 +86,6 @@
    #'(lambda (stream subchar arg)
        (declare (ignore subchar arg))
        `(sql-template ,(read stream))))
+
+(defun tn (class-name)
+  (make-symbol (table-name class-name)))

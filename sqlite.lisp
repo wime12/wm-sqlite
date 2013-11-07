@@ -577,9 +577,11 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 	    (#.+sqlite-row+ (funcall fn))
 	    (#.+sqlite-done+ (report-eof stream eof-error-p eof-value))
 	    (otherwise
-	     (check-sqlite-error
-	      errcode
-	      (statement-database (query-stream-statement stream)))))))))
+	     (let ((statement (query-stream-statement stream)))
+	       (check-sqlite-error
+		(sqlite3-reset (handle statement))
+		(statement-database (query-stream-statement stream)))))))
+	(error 'end-of-file :stream stream))))
 
 (defun report-eof (stream eof-error-p eof-value)
   (with-slots (eof) stream
