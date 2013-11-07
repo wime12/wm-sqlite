@@ -9,7 +9,7 @@
   ((handle :reader handle :initarg :handle
 	   :initform (error "No handle provided."))))
 
-(defgeneric handle (wrapper))
+#+ccl(defgeneric handle (wrapper))
 
 ;;; Database
 
@@ -33,7 +33,7 @@
 (defmethod initialize-instance :after ((instance database) &rest initargs
 				&key &allow-other-keys)
   (declare (ignore initargs))
-  (sqlite3-extended-result-codes (handle instance) t))
+  #+nil(sqlite3-extended-result-codes (handle instance) t))
 
 ;; SQLite Errors
 
@@ -240,13 +240,10 @@ further details."
     (let ((handle (handle statement)))
       (unwind-protect
 	   (progn
-	     (let ((errcode (sqlite3-step handle)))
-	       (unless (or (= errcode +sqlite-done+) (= errcode +sqlite-row+))
-		 (check-sqlite-error
-		  errcode
-		  (statement-database statement))))
+	     (sqlite3-step handle)
 	     nil)
-	(sqlite3-reset handle)))))
+	(check-sqlite-error (sqlite3-reset handle)
+			    (statement-database statement))))))
 
 (defun get-column (stmt index)
   (ecase (sqlite3-column-type stmt index)
