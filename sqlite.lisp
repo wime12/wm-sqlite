@@ -109,14 +109,13 @@ necessary. :READ-WRITE-CREATE is the default."
       (let ((database (make-instance 'database
 				     :handle handle
 				     :filename filename)))
-	(check-sqlite-error errcode database)
+	(check-sqlite-error errcode)
 	database))))
 
 (defgeneric close-database (database)
   (:method ((database database))
     (check-sqlite-error
-     (sqlite3-close-v2 (handle database))
-     database)
+     (sqlite3-close-v2 (handle database)))
     (with-slots (handle filename) database
       (setf handle nil)))
   (:documentation "Closes a database."))
@@ -183,30 +182,25 @@ and may be resused in following invocations.")
 		    value))
   (:method ((statement statement) (loc integer) (value integer))
     (check-sqlite-error
-     (sqlite3-bind-int (handle statement) loc value)
-     (statement-database statement))
+     (sqlite3-bind-int (handle statement) loc value))
     statement)
   (:method ((statement statement) (loc integer) (value float))
     (check-sqlite-error
-     (sqlite3-bind-double (handle statement) loc value)
-     (statement-database statement))
+     (sqlite3-bind-double (handle statement) loc value))
     statement)
   (:method ((statement statement) (loc integer) (value string))
     (check-sqlite-error
-     (sqlite3-bind-text (handle statement) loc value)
-     (statement-database statement))
+     (sqlite3-bind-text (handle statement) loc value))
     statement)
   (:method ((statement statement) (loc integer) (value vector))
     (check-sqlite-error
      (sqlite3-bind-blob (handle statement) loc
-			(coerce value '(vector (unsigned-byte 8))))
-     (statement-database statement))
+			(coerce value '(vector (unsigned-byte 8)))))
     statement)
   (:method ((statement statement) (loc integer) (value null))
     (declare (ignore value))
     (check-sqlite-error
-     (sqlite3-bind-null (handle statement) loc)
-     (statement-database statement))
+     (sqlite3-bind-null (handle statement) loc))
     statement))
 
 (defun bind-parameters (statement &rest args)
@@ -301,8 +295,7 @@ written to records and later be filled by using BLOB-STREAMs."))
 
 (defmethod bind-parameter ((statement statement) (loc integer) (value zeroblob))
   (check-sqlite-error
-   (sqlite3-bind-zeroblob (handle statement) loc (zeroblob-count value))
-   (statement-database statement)))
+   (sqlite3-bind-zeroblob (handle statement) loc (zeroblob-count value))))
 
 ;; Blob Streams
 
@@ -417,7 +410,7 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 			 (ecase direction
 			   ((:input :probe) 0)
 			   ((:output :io) 1)))
-    (check-sqlite-error errcode database)
+    (check-sqlite-error errcode)
     (make-instance
      (ecase direction
        ((:input :probe) 'blob-input-stream)
@@ -431,8 +424,7 @@ Its element type is always (UNSIGNED-BYTE 8)."))
   (with-slots (handle) stream
     (when handle
       (check-sqlite-error
-       (sqlite3-blob-close handle)
-       (blob-stream-database stream))
+       (sqlite3-blob-close handle))
       (setf handle nil)
       t)))
 
