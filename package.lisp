@@ -14,6 +14,7 @@
    ;; Error
    #:sqlite-error
    #:sqlite-error-code
+   #:sqlite-error-extended-code
    
    ;; Database
    #:database

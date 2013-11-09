@@ -14,6 +14,8 @@
 
 ;;; Database
 
+(defvar *default-database*)
+
 (defclass database (wrapper)
   ((filename :reader database-filename :initarg :filename))
   (:documentation "A class that represents connections to sqlite3 databases."))
@@ -264,7 +266,7 @@ ends the transaction."
 ends the transaction."
   (exec (prepare database "rollback transaction")))
 
-(defmacro with-transaction ((&optional (database *default-database*))
+(defmacro with-transaction ((&optional (database '*default-database*))
 			    &body body)
   "Starts a transaction and commits the transaction after the
 execution of BODY has finished. Provides the restarts
@@ -397,18 +399,18 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 (defclass blob-io-stream (blob-input-stream blob-output-stream)
   ())
 
-
-(defgeneric open-blob (database table column row &key database-name direction)
-  (:method ((database database) (table string) (column string) row
-	    &key (database-name "main") (direction :input))
-    (if (eq direction :probe)
-	(handler-case
-	    (let ((b (make-blob-stream database table column
-				       row database-name direction)))
-	      (close b)
-	      b)
-	  (sqlite-error () nil))
-	(make-blob-stream database table column row database-name direction))))
+(defun open-blob (table column row
+		  &key (database *default-database*)
+		    (database-name "main")
+		    (direction :input))
+  (if (eq direction :probe)
+      (handler-case
+	  (let ((b (make-blob-stream database table column
+				     row database-name direction)))
+	    (close b)
+	    b)
+	(sqlite-error () nil))
+      (make-blob-stream database table column row database-name direction)))
 
 (defun make-blob-stream (database table column row database-name direction)
   (multiple-value-bind (handle errcode)
@@ -417,7 +419,7 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 			 (ecase direction
 			   ((:input :probe) 0)
 			   ((:output :io) 1)))
-    (check-sqlite-error errcode)
+    (check-sqlite-error errcode database)
     (make-instance
      (ecase direction
        ((:input :probe) 'blob-input-stream)
@@ -435,11 +437,13 @@ Its element type is always (UNSIGNED-BYTE 8)."))
       (setf handle nil)
       t)))
 
-(defmacro with-open-blob ((stream database table column row
+(defmacro with-open-blob ((stream table column row
 				  &key (database-name "main")
-				  (direction :input))
+				  (direction :input)
+				  (database '*default-database*))
 			  &body body)
-  `(let ((,stream (open-blob ,database ,table ,column ,row
+  `(let ((,stream (open-blob ,table ,column ,row
+			     :database ,database
 			     :database-name ,database-name
 			     :direction ,direction)))
      (unwind-protect
@@ -613,8 +617,6 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 
 ;;; Convenience
 
-(defvar *default-database*)
-
 (defmacro with-database ((filename) &body body)
   `(with-open-database (*default-database* ,filename)
      ,@body))
@@ -622,10 +624,8 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 (defmethod prepare ((database (eql t)) sql &optional (length -1))
   (prepare *default-database* sql length))
 
-(defmethod open-blob ((database (eql t)) (table string) (column string) row
-		      &key (database-name "main") (direction :input))
-  (open-blob *default-database* table column row
-	     :database-name database-name :direction direction))
+(defmethod close-database ((database (eql t)))
+  (close-database *default-database*))
 
 (defun query (sql &rest args)
   (with-open-query (in (apply #'bind-parameters
