@@ -689,3 +689,15 @@
 	    (instance sqlite-persistent-object)
 	    &optional (database *default-database*))
     (reference (class-name reference-class) instance database)))
+
+;;; Open Blob
+
+(defmethod open-blob (table (column symbol) row
+		      &key (database *default-database*)
+			(database-name "main")
+			(direction :input))
+  (open-blob (table-name table) (slot-column-name table column) row
+	     :database database :database-name database-name
+	     :direction direction))
+
+

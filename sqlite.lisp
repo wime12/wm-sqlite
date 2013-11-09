@@ -399,18 +399,19 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 (defclass blob-io-stream (blob-input-stream blob-output-stream)
   ())
 
-(defun open-blob (table column row
-		  &key (database *default-database*)
-		    (database-name "main")
-		    (direction :input))
-  (if (eq direction :probe)
+(defgeneric open-blob (table column row &key database database-name direction)
+  (:method ((table string) (column string) row
+	    &key (database *default-database*)
+	      (database-name "main")
+	      (direction :input))
+    (if (eq direction :probe)
       (handler-case
 	  (let ((b (make-blob-stream database table column
 				     row database-name direction)))
 	    (close b)
 	    b)
 	(sqlite-error () nil))
-      (make-blob-stream database table column row database-name direction)))
+      (make-blob-stream database table column row database-name direction))))
 
 (defun make-blob-stream (database table column row database-name direction)
   (multiple-value-bind (handle errcode)
