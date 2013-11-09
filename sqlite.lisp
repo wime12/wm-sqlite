@@ -134,7 +134,6 @@ in BODY. The other arguments are like those of OPEN-DATABASE."
 	  (progn ,@body)
        (close-database ,db))))
 
-
 ;;; Statements
 
 (defclass statement (wrapper)
