@@ -155,24 +155,26 @@ by the generic function EXEC or used to create QUERY-STREAMS."))
 ;; Statement preparation
 
 (defgeneric prepare (database sql &optional length)
-    (:method ((database database) sql &optional (length -1))
-      "Prepares a statement in the database and returns an instance of
+  (:documentation
+   "Prepares a statement in the database and returns an instance of
 STATEMENT. The first argument is the DATABASE, the second argument
 is the SQL string. Optionally a third argument may designate the
 index up to which the SQL string will be considered. Only the first
 full SQL statement in the SQL string is prepared. The rest of the
-string is returned for further processing."
-      (multiple-value-bind (stmt-handle tail errcode)
-	  (sqlite3-prepare (handle database) sql length)
-	(check-sqlite-error errcode database)
-	(values
-	 (make-instance 'statement :handle stmt-handle :database database)
-	 tail))))
+string is returned for further processing.")
+  (:method ((database database) sql &optional (length -1))
+    (multiple-value-bind (stmt-handle tail errcode)
+	(sqlite3-prepare (handle database) sql length)
+      (check-sqlite-error errcode database)
+      (values
+       (make-instance 'statement :handle stmt-handle :database database)
+       tail))))
 
 ;; Parameter binding
 
 (defgeneric bind-parameter (statement loc value)
-  (:documentation "Binds the VALUE to a parameter of STATEMENT designated by LOC.
+  (:documentation
+   "Binds the VALUE to a parameter of STATEMENT designated by LOC.
 LOC can be an integer or a string. It either refers to the
 index of the parameter in the SQL string or to the identifier
 of the parameter.
@@ -248,21 +250,22 @@ further details."
 
 ;;; Transactions
 
-(defun begin-transaction (database)
+(defun begin-transaction (&optional (database *default-database*))
   "Starts a transaction."
   (exec (prepare database "begin transaction")))
 
-(defun commit-transaction (database)
+(defun commit-transaction (&optional (database *default-database*))
   "Commits any changes made since the transaction has begun and
 ends the transaction."
   (exec (prepare database "commit transaction")))
 
-(defun rollback-transaction (database)
+(defun rollback-transaction (&optional (database *default-database*))
   "Forgets all changes made since the transaction has begun and
 ends the transaction."
   (exec (prepare database "rollback transaction")))
 
-(defmacro with-transaction ((database) &body body)
+(defmacro with-transaction ((&optional (database *default-database*))
+			    &body body)
   "Starts a transaction and commits the transaction after the
 execution of BODY has finished. Provides the restarts
 COMMIT-TRANSACTION and ROLLBACK-TRANSACTION if an
@@ -396,7 +399,7 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 
 
 (defgeneric open-blob (database table column row &key database-name direction)
-  (:method ((database string) (table string) (column string) row
+  (:method ((database database) (table string) (column string) row
 	    &key (database-name "main") (direction :input))
     (if (eq direction :probe)
 	(handler-case
@@ -615,6 +618,14 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 (defmacro with-database ((filename) &body body)
   `(with-open-database (*default-database* ,filename)
      ,@body))
+
+(defmethod prepare ((database (eql t)) sql &optional (length -1))
+  (prepare *default-database* sql length))
+
+(defmethod open-blob ((database (eql t)) (table string) (column string) row
+		      &key (database-name "main") (direction :input))
+  (open-blob *default-database* table column row
+	     :database-name database-name :direction direction))
 
 (defun query (sql &rest args)
   (with-open-query (in (apply #'bind-parameters
