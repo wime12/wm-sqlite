@@ -32,6 +32,7 @@
    #:bind-parameters
    #:clear-bindings
    #:exec
+   #:last-insert-rowid
 
    ;; Blob Stream
    #:zeroblob

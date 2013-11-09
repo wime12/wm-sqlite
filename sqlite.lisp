@@ -86,7 +86,8 @@
 (defconstant +sqlite-open-readwrite-create+
   (logior +sqlite-open-readwrite+ +sqlite-open-create+))
 
-(defun open-database (filename &optional (mode :read-write-create))
+(defun open-database (filename
+		      &key (mode :read-write-create) (class 'database))
   "Opens an SQL database and returns a database object. The first argument
 is any valid lisp pathname or one of SQLite's special filenames like e.g.
 \":memory:\". The following keywords may be passed as second argument:
@@ -106,7 +107,7 @@ necessary. :READ-WRITE-CREATE is the default."
 	   (:read +sqlite-open-readonly+)
 	   (:read-write +sqlite-open-readwrite+)
 	   (:read-write-create +sqlite-open-readwrite-create+)))
-      (let ((database (make-instance 'database
+      (let ((database (make-instance class
 				     :handle handle
 				     :filename filename)))
 	(check-sqlite-error errcode)
@@ -120,13 +121,15 @@ necessary. :READ-WRITE-CREATE is the default."
       (setf handle nil)))
   (:documentation "Closes a database."))
 
-(defmacro with-open-database ((db filename &optional (mode :read-write-create))
+(defmacro with-open-database ((db filename
+				  &key (mode :read-write-create)
+				  (class 'database))
 			      &body body)
   "Opens a database and ensures that it will be closed after BODY
 has been executed or if an error occurs in BODY. The first argument
 is the name of the database by which the database can be referred to
 in BODY. The other arguments are like those of OPEN-DATABASE."
-  `(let ((,db (open-database ,filename ,mode)))
+  `(let ((,db (open-database ,filename :mode ,mode :class ,class)))
      (unwind-protect
 	  (progn ,@body)
        (close-database ,db))))
@@ -392,16 +395,18 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 (defclass blob-io-stream (blob-input-stream blob-output-stream)
   ())
 
-(defun open-blob (database table column row
-		  &key (database-name "main") (direction :input))
-  (if (eq direction :probe)
-      (handler-case
-	  (let ((b (make-blob-stream database table column
-				     row database-name direction)))
-	    (close b)
-	    b)
-	(sqlite-error () nil))
-      (make-blob-stream database table column row database-name direction)))
+
+(defgeneric open-blob (database table column row &key database-name direction)
+  (:method ((database string) (table string) (column string) row
+	    &key (database-name "main") (direction :input))
+    (if (eq direction :probe)
+	(handler-case
+	    (let ((b (make-blob-stream database table column
+				       row database-name direction)))
+	      (close b)
+	      b)
+	  (sqlite-error () nil))
+	(make-blob-stream database table column row database-name direction))))
 
 (defun make-blob-stream (database table column row database-name direction)
   (multiple-value-bind (handle errcode)
@@ -622,3 +627,6 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 	until (eq row :eof)
 	collect row)
      (column-names in))))
+
+(defun last-insert-rowid (&optional (database *default-database*))
+  (sqlite3-last-insert-rowid (handle database)))
