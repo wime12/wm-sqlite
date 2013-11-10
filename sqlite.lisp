@@ -472,7 +472,7 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 (defclass query-input-vector-stream (query-input-stream)
   ())
 
-(defgeneric open-query (statement &key element-type)
+(defgeneric open-query (statement &key &allow-other-keys)
   (:method ((statement statement) &key (element-type 'list))
     (make-instance (ecase element-type
 		     (list 'query-input-list-stream)
@@ -579,14 +579,13 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 	(let ((errcode (sqlite3-step handle)))
 	  (case errcode
 	    (#.+sqlite-row+ (funcall fn))
-	    (#.+sqlite-done+ (report-eof stream eof-error-p eof-value))
+	    (#.+sqlite-done+ (setf (slot-value stream 'eof) t)
+			     (report-eof stream eof-error-p eof-value))
 	    (otherwise
 	     (check-sqlite-error errcode (statement-database statement)))))
-	(error 'end-of-file :stream stream))))
+	(report-eof stream eof-error-p eof-value))))
 
 (defun report-eof (stream eof-error-p eof-value)
-  (with-slots (eof) stream
-    (setf eof t))
   (if eof-error-p
       (error 'end-of-file :stream stream)
       eof-value))

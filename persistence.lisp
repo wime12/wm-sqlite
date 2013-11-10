@@ -576,28 +576,48 @@
 		     :reader object-query-stream-persistent-class)))
 
 (defclass object-query-input-stream
-    (object-query-stream fundamental-input-stream)
-  ())
+    (object-query-stream query-input-stream)
+  ((buffer :initarg :buffer :reader object-query-input-stream-buffer)))
 
-(defun open-object-query (object-class &optional (database *default-database*))
-  (let* ((class (etypecase object-class
-		  (class object-class)
-		  (symbol (find-class object-class))))
-	 (statement (prepare database
-			     (first
-			      (sqlite-persistent-class-select-string class)))))
-    (make-instance
-     'object-query-input-stream
-     :statement statement
-     :handle (handle statement)
-     :persistent-class class)))
-
-#+nil(defmethod initialize-instance :after ((instance object-query-stream)
+(defmethod initialize-instance :after ((instance object-query-input-stream)
 				       &rest initargs &key)
   (declare (ignore initargs))
-  (setf (slot-value instance 'statement)
-	(sqlite-persistent-class-select-string
-	 (ensure-finalized (find-class (stream-element-type instance))))))
+  (setf (slot-value instance 'buffer) (make-list (column-count instance))))
+
+(defmethod stream-element-type ((stream object-query-stream))
+  (class-name (object-query-stream-persistent-class stream)))
+
+(defmethod open-query ((object-class sqlite-persistent-class)
+		       &key sql (database *default-database*))
+  (let* ((class (etypecase object-class
+		  (class object-class)
+		  (symbol (find-class object-class)))))
+    (make-instance
+     'object-query-input-stream
+     :statement (prepare
+		 database
+		 (concatenate 'string
+			      (first
+			       (sqlite-persistent-class-select-string class))
+			      sql))
+     :persistent-class class)))
+
+(defmethod open-query ((object-class symbol)
+		       &key sql (database *default-database*))
+  (open-query (find-class object-class) :sql sql :database database))
+
+(defgeneric read-row (object-query-stream &optional eof-error-p eof-value)
+  (:method ((stream object-query-input-stream)
+	    &optional (eof-error-p t) eof-value)
+    (let* ((buffer (object-query-input-stream-buffer stream))
+	   (class (object-query-stream-persistent-class stream))
+	   (res (read-row-into-sequence stream buffer eof-error-p eof-value)))
+      (if (query-input-stream-eof-p stream)
+	  res
+	  (set-slot-values (make-instance class)
+		       (second (sqlite-persistent-class-select-string class))
+		       buffer)))))
+
 
 ;;; Select
 
