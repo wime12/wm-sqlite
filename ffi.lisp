@@ -54,7 +54,7 @@
 
 ;;; Statements
 
-(defcfun (sqlite3-prepare% "sqlite3_prepare")
+(defcfun (sqlite3-prepare% "sqlite3_prepare_v2")
     :int
   (db-handle :pointer)
   (sql-str (:string :encoding :utf-8))

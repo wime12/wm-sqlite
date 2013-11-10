@@ -569,6 +569,36 @@
 	 (second foreign-key)))
       foreign-keys))))
 
+;;; Object Streams
+
+(defclass object-query-stream (query-stream)
+  ((persistent-class :initarg :persistent-class
+		     :reader object-query-stream-persistent-class)))
+
+(defclass object-query-input-stream
+    (object-query-stream fundamental-input-stream)
+  ())
+
+(defun open-object-query (object-class &optional (database *default-database*))
+  (let* ((class (etypecase object-class
+		  (class object-class)
+		  (symbol (find-class object-class))))
+	 (statement (prepare database
+			     (first
+			      (sqlite-persistent-class-select-string class)))))
+    (make-instance
+     'object-query-input-stream
+     :statement statement
+     :handle (handle statement)
+     :persistent-class class)))
+
+#+nil(defmethod initialize-instance :after ((instance object-query-stream)
+				       &rest initargs &key)
+  (declare (ignore initargs))
+  (setf (slot-value instance 'statement)
+	(sqlite-persistent-class-select-string
+	 (ensure-finalized (find-class (stream-element-type instance))))))
+
 ;;; Select
 
 (defgeneric pick (database count class sql &rest args)
