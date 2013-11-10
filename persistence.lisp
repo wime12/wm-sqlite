@@ -606,17 +606,16 @@
 		       &key sql (database *default-database*))
   (open-query (find-class object-class) :sql sql :database database))
 
-(defgeneric read-row (object-query-stream &optional eof-error-p eof-value)
-  (:method ((stream object-query-input-stream)
-	    &optional (eof-error-p t) eof-value)
-    (let* ((buffer (object-query-input-stream-buffer stream))
-	   (class (object-query-stream-persistent-class stream))
-	   (res (read-row-into-sequence stream buffer eof-error-p eof-value)))
-      (if (query-input-stream-eof-p stream)
-	  res
-	  (set-slot-values (make-instance class)
-		       (second (sqlite-persistent-class-select-string class))
-		       buffer)))))
+(defmethod read-row ((stream object-query-input-stream)
+		      &optional (eof-error-p t) eof-value)
+  (let* ((buffer (object-query-input-stream-buffer stream))
+	 (class (object-query-stream-persistent-class stream))
+	 (res (read-row-into-sequence stream buffer eof-error-p eof-value)))
+    (if (query-input-stream-eof-p stream)
+	res
+	(set-slot-values (make-instance class)
+			 (second (sqlite-persistent-class-select-string class))
+			 buffer))))
 
 
 ;;; Select
@@ -628,28 +627,17 @@
   (:method (database count (class sqlite-persistent-class) sql &rest args)
     (declare (dynamic-extent args))
     (ensure-finalized class)
-    (destructuring-bind (select-string out-slot-names)
-	(sqlite-persistent-class-select-string class)
-      (declare (list out-slot-names))
-      (with-open-query
-	  (s (apply #'bind-parameters
-		    (prepare database (concatenate 'string select-string sql))
-		    args))
-	(if count
-	    (progn
-	      (loop
-		 repeat count
-		 with row = (make-list (length out-slot-names))
-		 for res = (read-row-into-sequence s row nil :eos)
-		 until (eq res :eos)
-		 collect (set-slot-values (make-instance class)
-					  out-slot-names row)))
-	    (loop
-	       with row = (make-list (length out-slot-names))
-	       for res = (read-row-into-sequence s row nil :eos)
-	       until (eq res :eos)
-	       collect (set-slot-values (make-instance class)
-					out-slot-names row)))))))
+    (with-open-query (s class :sql sql :database database :args args)
+      (if count
+	  (loop
+	     repeat count
+	     for result = (read-row s nil :eos)
+	     until (eq result :eos)
+	     collect result)
+	  (loop
+	     for result = (read-row s nil :eos)
+	     until (eq result :eos)
+	     collect result)))))
 
 (defun split-select-args (args)
   (do* ((sql-args nil (cons el sql-args))
