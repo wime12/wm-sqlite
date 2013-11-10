@@ -737,5 +737,3 @@
   (open-blob (table-name table) (slot-column-name table column) row
 	     :database database :database-name database-name
 	     :direction direction))
-
-
