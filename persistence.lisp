@@ -588,23 +588,26 @@
   (class-name (object-query-stream-persistent-class stream)))
 
 (defmethod open-query ((object-class sqlite-persistent-class)
-		       &key sql (database *default-database*))
+		       &key sql (database *default-database*) args)
   (let* ((class (etypecase object-class
 		  (class object-class)
 		  (symbol (find-class object-class)))))
     (make-instance
      'object-query-input-stream
-     :statement (prepare
-		 database
-		 (concatenate 'string
-			      (first
-			       (sqlite-persistent-class-select-string class))
-			      sql))
+     :statement (apply #'bind-parameters
+		       (prepare
+			database
+			(concatenate 'string
+				     (first
+				      (sqlite-persistent-class-select-string
+				       class))
+				     sql))
+		       args) 
      :persistent-class class)))
 
 (defmethod open-query ((object-class symbol)
-		       &key sql (database *default-database*))
-  (open-query (find-class object-class) :sql sql :database database))
+		       &key sql (database *default-database*) args)
+  (open-query (find-class object-class) :sql sql :database database :args args))
 
 (defmethod read-row ((stream object-query-input-stream)
 		      &optional (eof-error-p t) eof-value)
