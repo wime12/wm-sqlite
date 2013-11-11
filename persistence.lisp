@@ -575,6 +575,13 @@
   ((persistent-class :initarg :persistent-class
 		     :reader object-query-stream-persistent-class)))
 
+(defmethod print-object ((instance object-query-stream) stream)
+  (print-unreadable-object (instance stream :type t :identity t)
+    (unless (slot-value instance 'handle)
+      (prin1 :closed stream)
+      (princ " " stream))
+    (princ (stream-element-type instance) stream)))
+
 (defclass object-query-input-stream
     (object-query-stream query-input-stream)
   ((buffer :initarg :buffer :reader object-query-input-stream-buffer)))
@@ -610,7 +617,7 @@
 		      &optional (eof-error-p t) eof-value)
   (let* ((buffer (object-query-input-stream-buffer stream))
 	 (class (object-query-stream-persistent-class stream))
-	 (res (read-row-into-sequence stream buffer eof-error-p eof-value)))
+	 (res (read-row-into-sequence buffer stream eof-error-p eof-value)))
     (if (query-input-stream-eof-p stream)
 	res
 	(set-slot-values (make-instance class)

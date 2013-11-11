@@ -64,7 +64,7 @@
 
 (defun sqlite3-prepare (db-handle sql-str max-length)
   (with-foreign-objects ((stmt-ptr :pointer)
-			 (tail-ptr '(:string :encoding :utf-8)))
+			 (tail-ptr :pointer))
     (let ((error-code
 	   (sqlite3-prepare% db-handle sql-str max-length stmt-ptr tail-ptr)))
       (values (mem-ref stmt-ptr :pointer)
