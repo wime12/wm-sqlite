@@ -6,11 +6,12 @@
 
 ;;; Wrapper
 
+(defgeneric handle (wrapper))
+
 (defclass wrapper ()
   ((handle :reader handle :initarg :handle
 	   :initform (error "No handle provided."))))
 
-#+ccl(defgeneric handle (wrapper))
 
 ;;; Database
 
@@ -454,7 +455,12 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 ;;; Query Streams
 
 (defclass query-stream (fundamental-stream)
-  ((statement :initarg :statement :reader query-stream-statement)))
+  ((statement :initarg :statement :reader query-stream-statement)
+   (handle))) ;; just for optimization
+
+(defmethod initialize-instance :after ((instance query-stream) &rest initargs &key)
+  (declare (ignore initargs))
+  (setf (slot-value instance 'handle) (handle (query-stream-statement instance))))
 
 (defclass query-input-stream (query-stream fundamental-input-stream)
   ((column-count :initarg :column-count :reader column-count)
@@ -464,7 +470,7 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 				       &rest initargs &key)
   (declare (ignore initargs))
   (setf (slot-value instance 'column-count)
-	(sqlite3-column-count (handle (query-stream-statement instance)))))
+	(sqlite3-column-count (slot-value instance 'handle))))
 
 (defclass query-input-list-stream (query-input-stream)
   ())
@@ -477,15 +483,15 @@ Its element type is always (UNSIGNED-BYTE 8)."))
     (make-instance (ecase element-type
 		     (list 'query-input-list-stream)
 		     (vector 'query-input-vector-stream))
-		   :statement statement
-		   :column-count (sqlite3-column-count (handle statement)))))
+		   :statement statement)))
 
 (defmethod close ((stream query-stream) &key abort)
   (declare (ignore abort))
-  (with-slots (statement) stream
+  (with-slots (statement handle) stream
     (when statement
-      (sqlite3-reset (handle statement))
-      (setf statement nil)
+      (sqlite3-reset handle)
+      (setf statement nil
+	    handle nil)
       t)))
 
 (defmacro with-open-query ((stream statement &rest options)
@@ -497,7 +503,7 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 
 (defgeneric column-name (stream index)
   (:method ((stream query-input-stream) index)
-    (sqlite3-column-name (handle (query-stream-statement stream)) index)))
+    (sqlite3-column-name (slot-value stream 'handle) index)))
 
 (defun column-names (stream)
   (loop
@@ -507,7 +513,7 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 (defgeneric column-type (stream index)
   (:method ((stream query-input-stream) index)
     (number-to-type
-     (sqlite3-column-type (handle (query-stream-statement stream)) index))))
+     (sqlite3-column-type (slot-value stream 'handle) index))))
 
 (defun column-types (stream)
   (loop
@@ -525,8 +531,7 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 (defgeneric read-row (stream &optional eof-error-p eof-value)
   (:method ((stream query-input-list-stream)
 	    &optional (eof-error-p t) eof-value)
-    (let ((handle (handle (query-stream-statement stream)))
-	  (column-count (column-count stream)))
+    (with-slots (handle column-count) stream
       (generic-read-row stream eof-error-p eof-value
 			(lambda ()
 			  (loop
@@ -534,8 +539,7 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 			     collect (get-column handle i))))))
   (:method ((stream query-input-vector-stream)
 	    &optional (eof-error-p t) eof-value)
-    (let ((handle (handle (query-stream-statement stream)))
-	  (column-count (column-count stream)))
+    (with-slots (handle column-count) stream
       (generic-read-row stream eof-error-p eof-value
 			(lambda ()
 			  (let ((v (make-array column-count)))
@@ -547,34 +551,33 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 	    &optional (eof-error-p t) eof-value)
     (generic-read-row stream eof-error-p eof-value
 		      (lambda ()
-			(get-column (handle (query-stream-statement stream))
+			(get-column (slot-value stream 'handle)
 				    column)))))
 
 (defgeneric read-row-into-sequence (stream sequence
 				    &optional eof-error-p eof-value)
   (:method ((stream query-input-stream) (sequence list)
 	    &optional (eof-error-p t) eof-value)
-    (let ((count (min (column-count stream) (length sequence)))
-	  (handle (handle (query-stream-statement stream))))
-      (generic-read-row stream eof-error-p eof-value
-			(lambda ()
-			  (do ((tail sequence (cdr tail))
-			       (i 0 (1+ i)))
-			      ((>= i count) i)
-			    (rplaca tail (get-column handle i)))))))
+    (with-slots (column-count handle) stream
+      (let ((count (min (column-count stream) (length sequence))))
+	(generic-read-row stream eof-error-p eof-value
+			  (lambda ()
+			    (do ((tail sequence (cdr tail))
+				 (i 0 (1+ i)))
+				((>= i count) i)
+			      (rplaca tail (get-column handle i))))))))
   (:method ((stream query-input-stream) (sequence vector)
 	    &optional (eof-error-p t) eof-value)
-    (let ((count (min (column-count stream) (length sequence)))
-	  (handle (handle (query-stream-statement stream))))
-      (generic-read-row stream eof-error-p eof-value
-			(lambda ()
-			  (dotimes (i count i)
-			    (setf (aref sequence i)
-				  (get-column handle i))))))))
+    (with-slots (column-count handle) stream
+      (let ((count (min (column-count stream) (length sequence))))
+	(generic-read-row stream eof-error-p eof-value
+			  (lambda ()
+			    (dotimes (i count i)
+			      (setf (aref sequence i)
+				    (get-column handle i)))))))))
 
 (defun generic-read-row (stream eof-error-p eof-value fn)
-  (let* ((statement (query-stream-statement stream))
-	 (handle (handle statement)))
+  (with-slots (statement handle) stream
     (if (not (query-input-stream-eof-p stream))
 	(let ((errcode (sqlite3-step handle)))
 	  (case errcode
