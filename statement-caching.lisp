@@ -1,7 +1,7 @@
 (in-package #:wm-sqlite)
 
 (defclass statement-caching-mixin ()
-  ((cache :initform (make-hash-table :test 'equal)
+  ((statement-cache :initform (make-hash-table :test 'equal)
 	  :accessor statement-cache)))
 
 (defmethod prepare ((instance statement-caching-mixin) sql
