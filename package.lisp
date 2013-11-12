@@ -89,4 +89,7 @@
    #:update-from-record
    #:insert-record
    #:delete-record
-   #:reference))
+   #:reference
+
+   ;; Statement Caching
+   #:statement-caching-mixin))
