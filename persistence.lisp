@@ -620,10 +620,18 @@
 	 (res (read-row-into-sequence buffer stream eof-error-p eof-value)))
     (if (query-input-stream-eof-p stream)
 	res
-	(set-slot-values (make-instance class)
-			 (second (sqlite-persistent-class-select-string class))
-			 buffer))))
+	(make-persistent-object
+	 (statement-database (query-stream-statement stream))
+	 class
+	 buffer))))
 
+(defgeneric make-persistent-object (database class values)
+  (:method ((database database) (class symbol) values)
+    (make-persistent-object database (find-class class) values))
+  (:method ((database database) (class sqlite-persistent-class) values)
+    (set-slot-values (make-instance class)
+		     (second (sqlite-persistent-class-select-string class))
+		     values)))
 
 ;;; Select
 
