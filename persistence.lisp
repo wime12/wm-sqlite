@@ -631,7 +631,7 @@
 
 (defgeneric pick (database count class sql &rest args)
   (:method ((database (eql t)) count class sql &rest args)
-    (apply #'pick *default-database* count class args))
+    (apply #'pick *default-database* count class sql args))
   (:method (database count (class symbol) sql &rest args)
     (declare (dynamic-extent args))
     (apply #'pick database count (find-class class) sql args))
@@ -736,17 +736,13 @@
 	    (update-from-record database reference-instance))
 	  (error "No foreign key found for instance ~S~%and reference class ~A."
 		 instance reference-class-name))))
-  (:method ((reference-class sqlite-persistent-class)
-	    (instance sqlite-persistent-object)
-	    &optional (database *default-database*))
+  (:method ((database database) (reference-class sqlite-persistent-class)
+	    (instance sqlite-persistent-object))
     (reference (class-name reference-class) instance database)))
 
 ;;; Open Blob
 
-(defmethod open-blob (table (column symbol) row
-		      &key (database *default-database*)
-			(database-name "main")
-			(direction :input))
-  (open-blob (table-name table) (slot-column-name table column) row
-	     :database database :database-name database-name
-	     :direction direction))
+(defmethod open-blob ((database database) table (column symbol) row
+		      &key (database-name "main") (direction :input))
+  (open-blob database (table-name table) (slot-column-name table column) row
+	     :database-name database-name :direction direction))

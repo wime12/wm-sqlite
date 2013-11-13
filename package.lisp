@@ -81,7 +81,6 @@
    #:primary-key
    #:foreign-keys
    #:table-name
-   #:last-used-key
    #:slot-column-name
    #:select
    #:pick
