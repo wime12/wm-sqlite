@@ -426,17 +426,6 @@
   (:method ((persistent-class sqlite-persistent-class))
     (sqlite-persistent-class-foreign-keys (ensure-finalized persistent-class))))
 
-(defgeneric last-used-key (persistent-class &optional database)
-  (:method ((class-name symbol) &optional (database *default-database*))
-    (last-used-key (find-class class-name) database))
-  (:method ((persistent-class sqlite-persistent-class)
-	    &optional (database *default-database*))
-    (with-open-query
-	(q (bind-parameter
-	    (prepare database "select seq from sqlite_sequence where name = ?")
-	    1 (table-name persistent-class)))
-      (read-row-column q 0))))
-
 ;;; Persistent Object
 
 (defclass sqlite-persistent-object ()
@@ -479,12 +468,14 @@
 			 initargs)))
 	    (call-next-method)))))
 
-(defgeneric update-record (persistent-object &optional database)
-  (:method ((object sqlite-persistent-object)
-	    &optional (database *default-database*))
+(defgeneric update-record (database persistent-object)
+  (:method ((database (eql t)) persistent-object)
+    (update-record *default-database* persistent-object))
+  (:method ((database database) (object sqlite-persistent-object))
     (let ((command
 	   (sqlite-persistent-class-update-record-string (class-of object))))
-      (assert command () "Update not possible for persisten class without primary key.")
+      (assert command ()
+	      "Update not possible for persisten class without primary key.")
       (destructuring-bind (statement-string in-slot-names) command
 	(exec
 	 (apply #'bind-parameters
@@ -506,9 +497,10 @@
    values)
   object)
 
-(defgeneric update-from-record (persistent-object &optional database)
-  (:method ((object sqlite-persistent-object)
-	    &optional (database *default-database*))
+(defgeneric update-from-record (database persistent-object)
+  (:method ((database (eql t)) persistent-object)
+    (update-record *default-database* persistent-object))
+  (:method ((database database) (object sqlite-persistent-object))
     (let ((command
 	   (sqlite-persistent-class-update-from-record-string
 	    (class-of object))))
@@ -523,9 +515,10 @@
 	   (read-row s)))))
     object))
 
-(defgeneric insert-record (persistent-object &optional database)
-  (:method ((object sqlite-persistent-object)
-	    &optional (database *default-database*))
+(defgeneric insert-record (database persistent-object)
+  (:method ((database (eql t)) persistent-object)
+    (insert-record *default-database* persistent-object))
+  (:method ((database database) (object sqlite-persistent-object))
     (destructuring-bind (statement-string in-slot-names)
 	(sqlite-persistent-class-insert-record-string (class-of object))
       (exec (apply #'bind-parameters
@@ -533,9 +526,10 @@
 		   (slot-values object in-slot-names))))
     object))
 
-(defgeneric delete-record (persistent-object &optional database)
-  (:method ((object sqlite-persistent-object)
-	    &optional (database *default-database*))
+(defgeneric delete-record (database persistent-object)
+  (:method ((database (eql t)) persistent-object)
+    (delete-record *default-database* persistent-object))
+  (:method ((database database) (object sqlite-persistent-object))
     (let ((command
 	   (sqlite-persistent-class-delete-record-string (class-of object))))
       (assert command () "Delete record not possible for persistent class without primary key.")
@@ -636,6 +630,8 @@
 ;;; Select
 
 (defgeneric pick (database count class sql &rest args)
+  (:method ((database (eql t)) count class sql &rest args)
+    (apply #'pick *default-database* count class args))
   (:method (database count (class symbol) sql &rest args)
     (declare (dynamic-extent args))
     (apply #'pick database count (find-class class) sql args))
@@ -699,11 +695,12 @@
 		 slot-name
 		 persistent-class)))))
 
-(defgeneric create-table (persistent-class &optional database)
-  (:method ((class sqlite-persistent-class)
-	    &optional (database *default-database*))
+(defgeneric create-table (database persistent-class)
+  (:method ((database (eql t)) class)
+    (create-table *default-database* class))
+  (:method ((database database) (class sqlite-persistent-class))
     (exec (prepare database (schema-string class))))
-  (:method ((class-name symbol) &optional (database *default-database*))
+  (:method ((database database) (class-name symbol))
     (create-table (find-class class-name) database)))
 
 ;;; Reference
@@ -721,10 +718,11 @@
 (defun reference-referenced-slot-names (foreign-key)
   (third foreign-key))
 
-(defgeneric reference (reference-class instance &optional database)
-  (:method ((reference-class-name symbol)
-	    (instance sqlite-persistent-object)
-	    &optional (database *default-database*))
+(defgeneric reference (database reference-class instance)
+  (:method ((database (eql t)) reference-class instance)
+    (reference *default-database* reference-class instance))
+  (:method ((database database) (reference-class-name symbol)
+	    (instance sqlite-persistent-object))
     (let* ((class (class-of instance))
 	   (foreign-key (assoc reference-class-name (foreign-keys class))))
       (if foreign-key
@@ -735,7 +733,7 @@
 			  (slot-value instance slot-name)))
 		  (reference-local-slot-names foreign-key)
 		  (reference-referenced-slot-names foreign-key))
-	    (update-from-record reference-instance database))
+	    (update-from-record database reference-instance))
 	  (error "No foreign key found for instance ~S~%and reference class ~A."
 		 instance reference-class-name))))
   (:method ((reference-class sqlite-persistent-class)

@@ -92,4 +92,7 @@
    #:reference
 
    ;; Statement Caching
-   #:statement-caching-mixin))
+   #:statement-caching-mixin
+
+   ;; Object Caching
+   #:object-caching-mixin))

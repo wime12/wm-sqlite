@@ -14,7 +14,8 @@
   :components ((:file "package")
 	       (:file "ffi")
                (:file "sqlite")
-	       (:file "statement-caching")
 	       (:file "template")
-	       (:file "persistence")))
+	       (:file "persistence")
+	       (:file "statement-caching")
+	       (:file "object-caching")))
 

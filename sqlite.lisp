@@ -337,7 +337,8 @@ Its element type is always (UNSIGNED-BYTE 8)."))
   '(unsigned-byte 8))
 
 (defgeneric blob-reopen (stream row)
-  (:documentation "Positions a BLOB-STREAM on another row in the current table.")
+  (:documentation
+   "Positions a BLOB-STREAM on another row in the current table.")
   (:method ((stream blob-stream) row)
     (let ((handle (get-handle-and-check stream)))
       (check-sqlite-error
@@ -406,11 +407,13 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 (defclass blob-io-stream (blob-input-stream blob-output-stream)
   ())
 
-(defgeneric open-blob (table column row &key database database-name direction)
-  (:method ((table string) (column string) row
-	    &key (database *default-database*)
-	      (database-name "main")
-	      (direction :input))
+(defgeneric open-blob (database table column row &key database-name direction)
+  (:method ((database (eql t)) table column row
+	    &key (database-name "main") (direction :input))
+    (open-blob *default-database* table column row
+	       :database-name database-name :direction direction))
+  (:method ((database database) (table string) (column string) row
+	    &key (database-name "main") (direction :input))
     (if (eq direction :probe)
       (handler-case
 	  (let ((b (make-blob-stream database table column
@@ -445,13 +448,11 @@ Its element type is always (UNSIGNED-BYTE 8)."))
       (setf handle nil)
       t)))
 
-(defmacro with-open-blob ((stream table column row
+(defmacro with-open-blob ((stream database table column row
 				  &key (database-name "main")
-				  (direction :input)
-				  (database '*default-database*))
+				  (direction :input))
 			  &body body)
-  `(let ((,stream (open-blob ,table ,column ,row
-			     :database ,database
+  `(let ((,stream (open-blob ,database ,table ,column ,row
 			     :database-name ,database-name
 			     :direction ,direction)))
      (unwind-protect
@@ -654,5 +655,5 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 	collect row)
      (column-names in))))
 
-(defun last-insert-rowid (&optional (database *default-database*))
+(defun last-insert-rowid ((database *default-database*))
   (sqlite3-last-insert-rowid (handle database)))
