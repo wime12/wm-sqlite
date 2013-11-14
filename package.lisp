@@ -73,6 +73,10 @@
    #:ls
    #:cn
    #:tn
+   
+   ;; Utilities
+   #:last-insert-rowid
+   #:changes
 
    ;; Persistent Objects
    #:sqlite-persistent-class
@@ -94,4 +98,4 @@
    #:statement-caching-mixin
 
    ;; Object Caching
-   #:object-caching-mixin))
+   #:sqlite-caching-persistent-class))

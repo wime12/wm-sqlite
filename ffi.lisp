@@ -196,10 +196,6 @@
   (stmt :pointer)
   (name (:string :encoding :utf-8)))
 
-(defcfun sqlite3-last-insert-rowid
-    :int
-  (db :pointer))
-
 
 ;;; Blobs
 
@@ -272,3 +268,14 @@
   (stmt :pointer)
   (index :int)
   (count :int))
+
+
+;;; Utilities
+
+(defcfun sqlite3-last-insert-rowid
+    :int
+  (db :pointer))
+
+(defcfun sqlite3-changes
+    :int
+  (db :pointer))

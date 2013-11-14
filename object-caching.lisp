@@ -1,51 +1,132 @@
 (in-package #:wm-sqlite)
 
-(defclass object-caching-database-mixin ()
-  ((object-cache :reader object-cache
-		 :initform (make-hash-table :test 'equal))))
+;;; Metaclass
 
-(defgeneric update-records-from-cache (database)
-  (:method ((database object-caching-database-mixin))
-    (with-transaction (database)
-      (maphash-values
-       (lambda (instance)
-	 (update-record instance database))
-       (object-cache database)))))
+(defclass sqlite-caching-persistent-class (sqlite-persistent-class)
+  ((object-cache
+    :reader object-cache
+    :initform (make-hash-table :test 'equal))
+   (signature-cache
+    :reader signature-cache
+    :initform (make-hash-table :test 'eq))
+   (signature-indices
+    :reader signature-indices)))
 
-#+nil(defmethod close-database :before ((database object-caching-database-mixin))
-  (update-records-from-cache database))
+(defmethod finalize-inheritance :after ((class sqlite-caching-persistent-class))
+  (let ((primary-key (sqlite-persistent-class-primary-key class)))
+    (when (null primary-key)
+      (error "Cannot implement caching for ~S: It does not have a primary key."
+	     class))
+    (setf (slot-value class 'signature-indices)
+	  (compute-signature-indices class))))
 
-(defun cached-object (values database)
-  (gethash values (object-cache database)))
+(defun compute-signature-indices (class)
+  (let ((pslots (sqlite-persistent-class-persistent-slots class)))
+    (mapcar (lambda (primary-key-slot)
+	      (position primary-key-slot pslots))
+	    (sqlite-persistent-class-primary-key class))))
 
-(defun (setf cached-object) (object values database)
-  (setf (gethash values (object-cache database)) object)
+(defun signature-from-instance (instance)
+  (mapcar (lambda (slot)
+	    (slot-value instance slot))
+	  (sqlite-persistent-class-primary-key (class-of instance))))
+
+(defun signature-from-values (values class)
+  (mapcar (lambda (i) (svref values i)) (signature-indices class)))
+
+(defun cached-object (signature persistent-class)
+  (gethash signature (object-cache persistent-class)))
+
+(defun (setf cached-object) (object signature persistent-class)
+  (setf (gethash signature (object-cache persistent-class)) object)
+  (setf (gethash object (signature-cache persistent-class)) signature)
   object)
 
-(defmethod make-persistent-object
-    ((database object-caching-database-mixin) (class symbol) values)
-  (make-persistent-object database (find-class class) values))
+(defmethod make-persistent-instance ((class sqlite-caching-persistent-class)
+				     values)
+  (let* ((signature (signature-from-values values class)))
+    (or (cached-object signature class)
+	(setf (cached-object signature class) (call-next-method)))))
 
-(defmethod make-persistent-object
-    ((database object-caching-database-mixin) (class sqlite-persistent-class) values)
-  (let ((signature (cons (class-name class) values)))
-    (or (cached-object signature database)
-	(let ((object (call-next-method)))
-	  (setf (cached-object (copy-list signature) database) object)
-	  object))))
+(defclass sqlite-caching-persistent-object (sqlite-persistent-object)
+  ())
 
-(defmethod insert-record :after ((database object-caching-database-mixin)
-				 (instance sqlite-persistent-object))
-  (let* ((class (class-of instance)))
-    (setf (cached-object
-	   (cons (class-name class)
-		 (mapcar
-		  (lambda (slot) (slot-value instance slot))
-		  (second
-		   (sqlite-persistent-class-insert-record-string class))))
-	   (object-cache database))
-	  instance)))
+(defmethod initialize-instance :around ((class sqlite-caching-persistent-class)
+					&rest initargs
+					&key direct-superclasses)
+  (let ((ocm (find-class 'sqlite-caching-persistent-object))
+	(scpc (find-class 'sqlite-caching-persistent-class)))
+    (if (member-if
+	 (lambda (super)
+	   (eq (class-of super) scpc))
+	 direct-superclasses)
+	(call-next-method)
+	(apply #'call-next-method
+	       class
+	       :direct-superclasses (append direct-superclasses (list ocm))
+	       initargs))))
 
-(defun clear-object-cache (&optional (database *default-database*))
-  (clrhash (object-cache database))
-  database)
+(defmethod reinitialize-instance :around
+    ((class sqlite-caching-persistent-class) &rest initargs
+     &key (direct-superclasses nil direct-superclasses-p))
+  (let ((ocm (find-class 'sqlite-caching-persistent-object)))
+    (prog1
+	(if direct-superclasses-p
+	    (let ((scpc (find-class 'sqlite-caching-persistent-class)))
+	      (if (or
+		   (eq class ocm)
+		   (member-if
+		    (lambda (super)
+		      (eq (class-of super) scpc))
+		    direct-superclasses))
+		  (call-next-method)
+		  (apply #'call-next-method
+			 class
+			 :direct-superclasses (append direct-superclasses
+						      (list ocm))
+			 initargs)))
+	    (call-next-method)))))
+
+
+;;;
+
+(defmethod insert-record :after ((database database)
+				 (instance sqlite-caching-persistent-object))
+  (setf (cached-object
+	 (signature-from-instance instance)
+	 (class-of instance))
+	instance))
+
+;;; TODO: control slot-access to primary key slots in order to keep caching consistent or just alert the user never to change primary keys
+
+(defmethod update-record :after ((database database)
+				 (instance sqlite-caching-persistent-object))
+  (setf (cached-object
+	 (signature-from-instance instance)
+	 (class-of instance))
+	instance))
+
+(defmethod update-from-record :after ((database database)
+				      (instance sqlite-caching-persistent-object))
+  (setf (cached-object
+	 (signature-from-instance instance)
+	 (class-of instance))
+	instance))
+
+(defmethod delete-record :after ((database database)
+				 (instance sqlite-caching-persistent-object))
+  (let ((class (class-of instance)))
+    (remhash (signature-from-instance instance) (object-cache class))
+    (remhash instance (signature-cache class))))
+
+(defgeneric clear-object-cache (class)
+  (:method ((class symbol))
+    (clear-object-cache (find-class class)))
+  (:method ((class sqlite-caching-persistent-class))
+    (clrhash (object-cache class))
+    (clrhash (signature-cache class))))
+
+(defgeneric reference ((database database)
+		       (reference-class sqlite-caching-persistent-class))
+  
+  )

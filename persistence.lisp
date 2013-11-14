@@ -438,7 +438,7 @@
 
 (defclass sqlite-persistent-object ()
   ()
-  (:metaclass sqlite-persistent-class))
+  #+nil(:metaclass sqlite-persistent-class))
 
 (defmethod initialize-instance :around ((class sqlite-persistent-class)
 					&rest initargs
@@ -484,12 +484,16 @@
 	   (command
 	    (sqlite-persistent-class-update-record-string class)))
       (assert command ()
-	      "Update not possible for persisten class without primary key.")
+	      "Update not possible for persistent class ~S without primary key."
+	      class)
       (exec
        (apply #'bind-parameters
 	      (prepare database command)
-	      (slot-values object
-			   (sqlite-persistent-class-primary-key class)))))
+	      (slot-values
+	       object
+	       (append (sqlite-persistent-class-non-primary-key-slots class)
+		       (sqlite-persistent-class-primary-key class)))))
+      (assert (= (changes database) 1) ()  "Update failed for ~S." object))
     object))
 
 (defun slot-values (object slot-names)
@@ -499,11 +503,10 @@
    slot-names))
 
 (defun set-slot-values (object slot-names values)
-  (mapc
-   (lambda (slot-name value)
-     (setf (slot-value object slot-name) value))
-   slot-names
-   values)
+  (loop
+     for value across values
+     for slot-name in slot-names
+     do (setf (slot-value object slot-name) value))
   object)
 
 (defgeneric update-from-record (database persistent-object)
@@ -546,11 +549,13 @@
 	   (command
 	    (sqlite-persistent-class-delete-record-string (class-of object))))
       (assert command ()
-	      "Delete record not possible for persistent class without primary key.")
+	      "Cannot delete record of ~S. No primary key." object)
       (exec (apply #'bind-parameters
 		   (prepare database command)
 		   (slot-values object
-				(sqlite-persistent-class-primary-key class)))))
+				(sqlite-persistent-class-primary-key class))))
+      (assert (= (changes database) 1) ()
+	      "Deletion of ~S failed." object))
     object))
 
 (defmethod table-name ((instance sqlite-persistent-object))
@@ -597,7 +602,7 @@
 (defmethod initialize-instance :after ((instance object-query-input-stream)
 				       &rest initargs &key)
   (declare (ignore initargs))
-  (setf (slot-value instance 'buffer) (make-list (column-count instance))))
+  (setf (slot-value instance 'buffer) (make-array (column-count instance))))
 
 (defmethod stream-element-type ((stream object-query-stream))
   (class-name (object-query-stream-persistent-class stream)))
@@ -626,15 +631,12 @@
 	 (res (read-row-into-sequence buffer stream eof-error-p eof-value)))
     (if (query-input-stream-eof-p stream)
 	res
-	(make-persistent-object
-	 (statement-database (query-stream-statement stream))
-	 class
-	 buffer))))
+	(make-persistent-instance class buffer))))
 
-(defgeneric make-persistent-object (database class values)
-  (:method ((database database) (class symbol) values)
-    (make-persistent-object database (find-class class) values))
-  (:method ((database database) (class sqlite-persistent-class) values)
+(defgeneric make-persistent-instance (class values)
+  (:method ((class symbol) values)
+    (make-persistent-instance (find-class class) values))
+  (:method ((class sqlite-persistent-class) values)
     (set-slot-values (make-instance class)
 		     (sqlite-persistent-class-persistent-slots class)
 		     values)))
@@ -750,7 +752,7 @@
 		 instance reference-class-name))))
   (:method ((database database) (reference-class sqlite-persistent-class)
 	    (instance sqlite-persistent-object))
-    (reference (class-name reference-class) instance database)))
+    (reference database (class-name reference-class) instance database)))
 
 ;;; Open Blob
 

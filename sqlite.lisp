@@ -655,8 +655,17 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 	collect row)
      (column-names in))))
 
+
+;;; Utilities
+
 (defgeneric last-insert-rowid (database)
   (:method ((database (eql t)))
     (last-insert-rowid *default-database*))
   (:method ((database database))
     (sqlite3-last-insert-rowid (handle database))))
+
+(defgeneric changes (database)
+  (:method ((databse (eql t)))
+    (changes *default-database*))
+  (:method ((database database))
+    (sqlite3-changes (handle database))))
