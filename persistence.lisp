@@ -128,12 +128,8 @@
 #+nil(defun non-primary-key-slotds (slotds)
   (remove-if #'sqlite-persistent-slot-definition-primary-key slotds))
 
-(defun multi-primary-key-p (slotds)
-  (> (count-if
-      (lambda (slotd)
-	(not (null (sqlite-persistent-slot-definition-primary-key slotd))))
-      slotds)
-     1))
+(defun multi-primary-key-p (class)
+  (> (length (sqlite-persistent-class-primary-key class)) 1))
 
 (defun slot-name-sql-identifier (slotd)
   (sql-identifier (slot-definition-name slotd)))
@@ -197,7 +193,7 @@
 	     (sqlite-persistent-class-table-name class))))
 
 (defun compute-schema-string (class)
-  (let* ((multi-primary-key-p (> (length (the list (primary-key class))) 1)))
+  (let* ((multi-primary-key-p (multi-primary-key-p class)))
     (with-output-to-string (s)
       (format s "create table ~A (~%    "
 	      (sqlite-persistent-class-table-name class))
@@ -209,7 +205,9 @@
 
 (defun attribute-lines (class multi-primary-key-p stream)
   (declare (stream stream))
-  (let ((persistent-slot-definitions (persistent-slotds (class-slots class))))
+  (let ((persistent-slot-definitions
+	 (mapcar (lambda (slot) (find-slotd class slot))
+		 (sqlite-persistent-class-persistent-slots class))))
     (maplist
      (lambda (slotds)
        (let ((slotd (first slotds)))
@@ -240,7 +238,7 @@
     (format stream ",~%  primary key (~{~A~^, ~})"
 	    (mapcar #'(lambda (slot-name)
 			(slot-column-name class slot-name))
-		    (primary-key class)))))
+		    (sqlite-persistent-class-primary-key class)))))
 
 (defun unique-constraint-lines (class stream)
   (declare (stream stream))
