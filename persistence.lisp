@@ -32,6 +32,12 @@
    (primary-key
     :initarg :primary-key
     :reader sqlite-persistent-class-primary-key)
+   (non-primary-key-slots
+    :reader sqlite-persistent-class-non-primary-key-slots
+    :initform nil)
+   (persistent-slots
+    :reader sqlite-persistent-class-persistent-slots
+    :initform nil)
    (foreign-keys
     :initarg :foreign-keys
     :reader sqlite-persistent-class-foreign-keys
@@ -42,11 +48,15 @@
     :initform nil)))
 
 (defun initialize-persistent-class-slots (class)
-  (with-slots (table-name primary-key foreign-keys) class
+  (with-slots (table-name primary-key non-primary-key-slots persistent-slots
+			  foreign-keys)
+      class
     (setf table-name (or (and (listp table-name) (car table-name))
 			 table-name
 			 (compute-table-name class))
 	  primary-key (compute-primary-key class)
+	  non-primary-key-slots (compute-non-primary-key-slots class)
+	  persistent-slots (compute-persistent-slots class)
 	  foreign-keys (mapcar #'normalize-foreign-key-spec foreign-keys)))
   (set-sql-strings class))
 
@@ -54,6 +64,21 @@
   (mapcan
    (lambda (slotd)
      (when (sqlite-persistent-slot-definition-primary-key slotd)
+       (list (slot-definition-name slotd))))
+   (class-slots class)))
+
+(defun compute-non-primary-key-slots (class)
+  (mapcan
+   (lambda (slotd)
+     (when (and (sqlite-persistent-slot-definition-persistence slotd)
+		(not (sqlite-persistent-slot-definition-primary-key slotd)))
+       (list (slot-definition-name slotd))))
+   (class-slots class)))
+
+(defun compute-persistent-slots (class)
+  (mapcan
+   (lambda (slotd)
+     (when (sqlite-persistent-slot-definition-persistence slotd)
        (list (slot-definition-name slotd))))
    (class-slots class)))
 
@@ -94,13 +119,13 @@
 (defun compute-table-name (class)
   (sql-identifier (symbol-name (class-name class))))
 
-(defun persistent-slotds (slotds)
+#+nil(defun persistent-slotds (slotds)
   (remove-if-not #'sqlite-persistent-slot-definition-persistence slotds))
 
-(defun primary-key-slotds (slotds)
+#+nil(defun primary-key-slotds (slotds)
   (remove-if-not #'sqlite-persistent-slot-definition-primary-key slotds))
 
-(defun non-primary-key-slotds (slotds)
+#+nil(defun non-primary-key-slotds (slotds)
   (remove-if #'sqlite-persistent-slot-definition-primary-key slotds))
 
 (defun multi-primary-key-p (slotds)
@@ -114,59 +139,46 @@
   (sql-identifier (slot-definition-name slotd)))
 
 (defun compute-insert-record-string (class)
-  (let ((pslotds (persistent-slotds (class-slots class))))
-    (list
-     (format nil "insert into ~A(~{~A~^, ~}) values(~{@~A~^, ~});"
+  (let ((pslots (sqlite-persistent-class-persistent-slots class)))
+    (format nil "insert into ~A(~{~A~^, ~}) values(~{@~A~^, ~});"
 	    (sqlite-persistent-class-table-name class)
-	    (mapcar #'sqlite-persistent-slot-definition-column-name pslotds)
-	    (mapcar #'slot-name-sql-identifier pslotds))
-     (mapcar #'slot-definition-name pslotds))))
+	    (mapcar (lambda (slot)
+		      (slot-column-name class slot))
+		    pslots)
+	    (mapcar #'sql-identifier pslots))))
 
 (defun compute-update-record-string (class)
-  (let ((pkslotds (primary-key-slotds (class-slots class)))
-	(npkslotds (non-primary-key-slotds (class-slots class))))
-    (when pkslotds
-      (list
-       (format nil "update ~A set ~{~A = @~A~^, ~} where ~{(~A = @~A)~^ and ~};"
-	       (sqlite-persistent-class-table-name class)
-	       (mapcan #'list
-		       (mapcar #'sqlite-persistent-slot-definition-column-name
-			       npkslotds)
-		       (mapcar #'slot-name-sql-identifier npkslotds))
-	       (mapcan #'list
-		       (mapcar #'sqlite-persistent-slot-definition-column-name
-			       pkslotds)
-		       (mapcar #'slot-name-sql-identifier pkslotds)))
-       (nconc (mapcar #'slot-definition-name npkslotds)
-	      (mapcar #'slot-definition-name pkslotds))))))
+  (let ((pkslots (sqlite-persistent-class-primary-key class))
+	(npkslots (sqlite-persistent-class-non-primary-key-slots class)))
+    (when pkslots
+      (format nil "update ~A set ~{~A = @~A~^, ~} where ~{(~A = @~A)~^ and ~};"
+	      (sqlite-persistent-class-table-name class)
+	      (mapcan #'list
+		      (mapcar (lambda (slot) (slot-column-name class slot)) npkslots)
+		      (mapcar #'sql-identifier npkslots))
+	      (mapcan #'list
+		      (mapcar (lambda (slot) (slot-column-name class slot)) pkslots)
+		      (mapcar #'sql-identifier pkslots))))))
 
 (defun compute-delete-record-string (class)
-  (let ((pkslotds (primary-key-slotds (class-slots class))))
-    (when pkslotds
-      (list
-       (format nil "delete from ~A where ~{(~A = @~A)~^ and ~};"
-	       (sqlite-persistent-class-table-name class)
-	       (mapcan #'list
-		       (mapcar #'sqlite-persistent-slot-definition-column-name
-			       pkslotds)
-		       (mapcar #'slot-name-sql-identifier pkslotds)))
-       (mapcar #'slot-definition-name pkslotds)))))
+  (let ((pkslots (sqlite-persistent-class-primary-key class)))
+    (when pkslots
+      (format nil "delete from ~A where ~{(~A = @~A)~^ and ~};"
+	      (sqlite-persistent-class-table-name class)
+	      (mapcan #'list
+		      (mapcar (lambda (slot) (slot-column-name class slot)) pkslots)
+		      (mapcar #'sql-identifier pkslots))))))
 
 (defun compute-update-from-record-string (class)
-  (let ((npkslotds (non-primary-key-slotds (class-slots class)))
-	(pkslotds (primary-key-slotds (class-slots class))))
-    (when pkslotds
-      (list
-       (format nil "select ~{~A~^, ~} from ~A where ~{(~A = @~A)~^ and ~};"
-	       (mapcar #'sqlite-persistent-slot-definition-column-name
-		       npkslotds)
-	       (sqlite-persistent-class-table-name class)
-	       (mapcan #'list
-		       (mapcar #'sqlite-persistent-slot-definition-column-name
-			       pkslotds)
-		       (mapcar #'slot-name-sql-identifier pkslotds)))
-       (mapcar #'slot-definition-name npkslotds)
-       (mapcar #'slot-definition-name pkslotds)))))
+  (let ((npkslots (sqlite-persistent-class-non-primary-key-slots class))
+	(pkslots (sqlite-persistent-class-primary-key class)))
+    (when pkslots
+      (format nil "select ~{~A~^, ~} from ~A where ~{(~A = @~A)~^ and ~};"
+	      (mapcar (lambda (slot) (slot-column-name class slot)) npkslots)
+	      (sqlite-persistent-class-table-name class)
+	      (mapcan #'list
+		      (mapcar (lambda (slot) (slot-column-name class slot)) pkslots)
+		      (mapcar #'sql-identifier pkslots))))))
 
 (defun find-slotd (class slot)
   (flet ((find-slotd-class (class slot-name)
@@ -179,12 +191,10 @@
       (class (find-slotd-class class slot)))))
 
 (defun compute-select-string (class)
-  (let* ((pslotds (persistent-slotds (class-slots class))))
-    (list
-     (format nil "select ~{~A~^, ~} from ~A "
-	     (mapcar #'sqlite-persistent-slot-definition-column-name pslotds)
-	     (sqlite-persistent-class-table-name class))
-     (mapcar #'slot-definition-name pslotds))))
+  (let* ((pslots (sqlite-persistent-class-persistent-slots class)))
+    (format nil "select ~{~A~^, ~} from ~A "
+	     (mapcar (lambda (slot) (slot-column-name class slot)) pslots)
+	     (sqlite-persistent-class-table-name class))))
 
 (defun compute-schema-string (class)
   (let* ((multi-primary-key-p (> (length (the list (primary-key class))) 1)))
@@ -472,15 +482,16 @@
   (:method ((database (eql t)) persistent-object)
     (update-record *default-database* persistent-object))
   (:method ((database database) (object sqlite-persistent-object))
-    (let ((command
-	   (sqlite-persistent-class-update-record-string (class-of object))))
+    (let* ((class (class-of object))
+	   (command
+	    (sqlite-persistent-class-update-record-string class)))
       (assert command ()
 	      "Update not possible for persisten class without primary key.")
-      (destructuring-bind (statement-string in-slot-names) command
-	(exec
-	 (apply #'bind-parameters
-		(prepare database statement-string)
-		(slot-values object in-slot-names)))))
+      (exec
+       (apply #'bind-parameters
+	      (prepare database command)
+	      (slot-values object
+			   (sqlite-persistent-class-primary-key class)))))
     object))
 
 (defun slot-values (object slot-names)
@@ -501,42 +512,47 @@
   (:method ((database (eql t)) persistent-object)
     (update-record *default-database* persistent-object))
   (:method ((database database) (object sqlite-persistent-object))
-    (let ((command
-	   (sqlite-persistent-class-update-from-record-string
-	    (class-of object))))
-      (assert command () "Update from record not possible for persistent class without primary key.")
-      (destructuring-bind (statement-string out-slot-names in-slot-names)
-	  command
-	(set-slot-values
-	 object out-slot-names
-	 (with-open-query (s (apply #'bind-parameters
-				    (prepare database statement-string)
-				    (slot-values object in-slot-names)))
-	   (read-row s)))))
+    (let* ((class (find-class object))
+	   (command (sqlite-persistent-class-update-from-record-string class)))
+      (assert
+       command ()
+       "Update from record not possible for persistent class without primary key.")
+      (set-slot-values
+	 object
+	 (sqlite-persistent-class-non-primary-key-slots class)
+	 (with-open-query
+	     (s (apply #'bind-parameters
+		       (prepare database command)
+		       (slot-values object
+				    (sqlite-persistent-class-primary-key class))))
+	   (read-row s))))
     object))
 
 (defgeneric insert-record (database persistent-object)
   (:method ((database (eql t)) persistent-object)
     (insert-record *default-database* persistent-object))
   (:method ((database database) (object sqlite-persistent-object))
-    (destructuring-bind (statement-string in-slot-names)
-	(sqlite-persistent-class-insert-record-string (class-of object))
+    (let ((class (class-of object)))
       (exec (apply #'bind-parameters
-		   (prepare database statement-string)
-		   (slot-values object in-slot-names))))
+		   (prepare database
+			    (sqlite-persistent-class-insert-record-string class))
+		   (slot-values object
+				(sqlite-persistent-class-persistent-slots class)))))
     object))
 
 (defgeneric delete-record (database persistent-object)
   (:method ((database (eql t)) persistent-object)
     (delete-record *default-database* persistent-object))
   (:method ((database database) (object sqlite-persistent-object))
-    (let ((command
-	   (sqlite-persistent-class-delete-record-string (class-of object))))
-      (assert command () "Delete record not possible for persistent class without primary key.")
-      (destructuring-bind (statement-string in-slot-names) command
-	  (exec (apply #'bind-parameters
-		       (prepare database statement-string)
-		       (slot-values object in-slot-names)))))
+    (let* ((class (class-of object))
+	   (command
+	    (sqlite-persistent-class-delete-record-string (class-of object))))
+      (assert command ()
+	      "Delete record not possible for persistent class without primary key.")
+      (exec (apply #'bind-parameters
+		   (prepare database command)
+		   (slot-values object
+				(sqlite-persistent-class-primary-key class)))))
     object))
 
 (defmethod table-name ((instance sqlite-persistent-object))
@@ -596,9 +612,7 @@
 		     (prepare
 		      database
 		      (concatenate 'string
-				   (first
-				    (sqlite-persistent-class-select-string
-				     object-class))
+				   (sqlite-persistent-class-select-string object-class)
 				   sql))
 		     args) 
    :persistent-class object-class))
@@ -624,7 +638,7 @@
     (make-persistent-object database (find-class class) values))
   (:method ((database database) (class sqlite-persistent-class) values)
     (set-slot-values (make-instance class)
-		     (second (sqlite-persistent-class-select-string class))
+		     (sqlite-persistent-class-persistent-slots class)
 		     values)))
 
 ;;; Select
