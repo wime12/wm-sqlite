@@ -42,6 +42,10 @@
     :initarg :foreign-keys
     :reader sqlite-persistent-class-foreign-keys
     :initform nil)
+   (foreign-key-select-strings
+    :initarg :foreign-key-select-strings
+    :reader sqlite-persistent-class-foreign-key-select-strings
+    :initform nil)
    (unique-constraints
     :initarg :unique
     :reader sqlite-persistent-class-unique-constraints
@@ -49,7 +53,7 @@
 
 (defun initialize-persistent-class-slots (class)
   (with-slots (table-name primary-key non-primary-key-slots persistent-slots
-			  foreign-keys)
+			  foreign-keys foreign-key-select-strings)
       class
     (setf table-name (or (and (listp table-name) (car table-name))
 			 table-name
@@ -57,7 +61,8 @@
 	  primary-key (compute-primary-key class)
 	  non-primary-key-slots (compute-non-primary-key-slots class)
 	  persistent-slots (compute-persistent-slots class)
-	  foreign-keys (mapcar #'normalize-foreign-key-spec foreign-keys)))
+	  foreign-keys (mapcar #'normalize-foreign-key-spec foreign-keys)
+	  foreign-key-select-strings (compute-foreign-key-select-strings class)))
   (set-sql-strings class))
 
 (defun compute-primary-key (class)
@@ -118,15 +123,6 @@
 
 (defun compute-table-name (class)
   (sql-identifier (symbol-name (class-name class))))
-
-#+nil(defun persistent-slotds (slotds)
-  (remove-if-not #'sqlite-persistent-slot-definition-persistence slotds))
-
-#+nil(defun primary-key-slotds (slotds)
-  (remove-if-not #'sqlite-persistent-slot-definition-primary-key slotds))
-
-#+nil(defun non-primary-key-slotds (slotds)
-  (remove-if #'sqlite-persistent-slot-definition-primary-key slotds))
 
 (defun multi-primary-key-p (class)
   (> (length (sqlite-persistent-class-primary-key class)) 1))
@@ -284,6 +280,28 @@
 	     (when deferred
 	       (format stream " deferrable initially deferred"))))
 	 foreign-keys)))))
+
+(defun compute-foreign-key-select-strings (class)
+  (let ((foreign-keys (sqlite-persistent-class-foreign-keys class)))
+    (mapcar
+     (lambda (foreign-key)
+       (let ((reference-class-name (first foreign-key)))
+	 (cons reference-class-name
+	     (compute-foreign-key-select-string reference-class-name
+						(third foreign-key)))))
+     foreign-keys)))
+
+(defun compute-foreign-key-select-string (reference-class-name reference-slots)
+  (let ((reference-class (find-class reference-class-name)))
+    (format nil "select ~{~A~^, ~} from ~A where ~{(~A = @~A)~^ and ~};"
+	    (mapcar (lambda (slot) (slot-column-name reference-class slot))
+		    (sqlite-persistent-class-persistent-slots reference-class))
+	    (sqlite-persistent-class-table-name reference-class)
+	    (mapcan #'list
+		    (mapcar (lambda (slot) (slot-column-name reference-class
+							     slot))
+			    reference-slots)
+		    (mapcar #'sql-identifier reference-slots)))))
 
 ;;; Direct Slots
 
@@ -752,7 +770,7 @@
 		 instance reference-class-name))))
   (:method ((database database) (reference-class sqlite-persistent-class)
 	    (instance sqlite-persistent-object))
-    (reference database (class-name reference-class) instance database)))
+    (reference database (class-name reference-class) instance)))
 
 ;;; Open Blob
 
