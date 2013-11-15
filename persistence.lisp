@@ -42,9 +42,9 @@
     :initarg :foreign-keys
     :reader sqlite-persistent-class-foreign-keys
     :initform nil)
-   (foreign-key-select-strings
-    :initarg :foreign-key-select-strings
-    :reader sqlite-persistent-class-foreign-key-select-strings
+   (foreign-key-where-strings
+    :initarg :foreign-key-where-strings
+    :reader sqlite-persistent-class-foreign-key-where-strings
     :initform nil)
    (unique-constraints
     :initarg :unique
@@ -53,7 +53,7 @@
 
 (defun initialize-persistent-class-slots (class)
   (with-slots (table-name primary-key non-primary-key-slots persistent-slots
-			  foreign-keys foreign-key-select-strings)
+			  foreign-keys foreign-key-where-strings)
       class
     (setf table-name (or (and (listp table-name) (car table-name))
 			 table-name
@@ -62,7 +62,7 @@
 	  non-primary-key-slots (compute-non-primary-key-slots class)
 	  persistent-slots (compute-persistent-slots class)
 	  foreign-keys (mapcar #'normalize-foreign-key-spec foreign-keys)
-	  foreign-key-select-strings (compute-foreign-key-select-strings class)))
+	  foreign-key-where-strings (compute-foreign-key-where-strings class)))
   (set-sql-strings class))
 
 (defun compute-primary-key (class)
@@ -281,22 +281,19 @@
 	       (format stream " deferrable initially deferred"))))
 	 foreign-keys)))))
 
-(defun compute-foreign-key-select-strings (class)
+(defun compute-foreign-key-where-strings (class)
   (let ((foreign-keys (sqlite-persistent-class-foreign-keys class)))
     (mapcar
      (lambda (foreign-key)
        (let ((reference-class-name (first foreign-key)))
 	 (cons reference-class-name
-	     (compute-foreign-key-select-string reference-class-name
-						(third foreign-key)))))
+	     (compute-foreign-key-where-string reference-class-name
+					       (third foreign-key)))))
      foreign-keys)))
 
-(defun compute-foreign-key-select-string (reference-class-name reference-slots)
+(defun compute-foreign-key-where-string (reference-class-name reference-slots)
   (let ((reference-class (find-class reference-class-name)))
-    (format nil "select ~{~A~^, ~} from ~A where ~{(~A = @~A)~^ and ~};"
-	    (mapcar (lambda (slot) (slot-column-name reference-class slot))
-		    (sqlite-persistent-class-persistent-slots reference-class))
-	    (sqlite-persistent-class-table-name reference-class)
+    (format nil "where ~{(~A = @~A)~^ and ~};"
 	    (mapcan #'list
 		    (mapcar (lambda (slot) (slot-column-name reference-class
 							     slot))
@@ -758,14 +755,13 @@
     (let* ((class (class-of instance))
 	   (foreign-key (assoc reference-class-name (foreign-keys class))))
       (if foreign-key
-	  (let ((reference-instance
-		 (make-instance (find-class reference-class-name))))
-	    (mapc (lambda (slot-name reference-slot-name)
-		    (setf (slot-value reference-instance reference-slot-name)
-			  (slot-value instance slot-name)))
-		  (reference-local-slot-names foreign-key)
-		  (reference-referenced-slot-names foreign-key))
-	    (update-from-record database reference-instance))
+	  (car (apply #'pick database 1 reference-class-name
+		      (cdr
+		       (assoc reference-class-name
+			      (sqlite-persistent-class-foreign-key-where-strings
+			       class)))
+		      (mapcar (lambda (slot) (slot-value instance slot))
+			      (second foreign-key))))
 	  (error "No foreign key found for instance ~S~%and reference class ~A."
 		 instance reference-class-name))))
   (:method ((database database) (reference-class sqlite-persistent-class)
