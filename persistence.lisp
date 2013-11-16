@@ -10,7 +10,8 @@
 ;;; Persistent Class
 
 (defclass sqlite-persistent-class (standard-class)
-  ((insert-record-string
+  ((buffer :initarg :buffer :reader sqlite-persistent-class-buffer)
+   (insert-record-string
     :reader sqlite-persistent-class-insert-record-string
     :initform nil)
    (update-record-string
@@ -42,9 +43,9 @@
     :initarg :foreign-keys
     :reader sqlite-persistent-class-foreign-keys
     :initform nil)
-   (foreign-key-where-strings
-    :initarg :foreign-key-where-strings
-    :reader sqlite-persistent-class-foreign-key-where-strings
+   (foreign-key-select-strings
+    :initarg :foreign-key-select-strings
+    :reader sqlite-persistent-class-foreign-key-select-strings
     :initform nil)
    (unique-constraints
     :initarg :unique
@@ -53,16 +54,18 @@
 
 (defun initialize-persistent-class-slots (class)
   (with-slots (table-name primary-key non-primary-key-slots persistent-slots
-			  foreign-keys foreign-key-where-strings)
+			  foreign-keys foreign-key-select-strings buffer)
       class
-    (setf table-name (or (and (listp table-name) (car table-name))
+    (let ((pslots (compute-persistent-slots class)))
+      (setf table-name (or (and (listp table-name) (car table-name))
 			 table-name
 			 (compute-table-name class))
 	  primary-key (compute-primary-key class)
 	  non-primary-key-slots (compute-non-primary-key-slots class)
-	  persistent-slots (compute-persistent-slots class)
-	  foreign-keys (mapcar #'normalize-foreign-key-spec foreign-keys)
-	  foreign-key-where-strings (compute-foreign-key-where-strings class)))
+	  persistent-slots pslots
+	  foreign-keys (mapcar #'normalize-foreign-key-spec foreign-keys))
+      (setf foreign-key-select-strings (compute-foreign-key-select-strings class)
+	    buffer (make-array (length pslots)))))
   (set-sql-strings class))
 
 (defun compute-primary-key (class)
@@ -281,19 +284,23 @@
 	       (format stream " deferrable initially deferred"))))
 	 foreign-keys)))))
 
-(defun compute-foreign-key-where-strings (class)
+(defun compute-foreign-key-select-strings (class)
   (let ((foreign-keys (sqlite-persistent-class-foreign-keys class)))
     (mapcar
      (lambda (foreign-key)
        (let ((reference-class-name (first foreign-key)))
 	 (cons reference-class-name
-	     (compute-foreign-key-where-string reference-class-name
+	     (compute-foreign-key-select-string reference-class-name
 					       (third foreign-key)))))
      foreign-keys)))
 
-(defun compute-foreign-key-where-string (reference-class-name reference-slots)
+(defun compute-foreign-key-select-string (reference-class-name reference-slots)
   (let ((reference-class (find-class reference-class-name)))
-    (format nil "where ~{(~A = @~A)~^ and ~};"
+    (ensure-finalized reference-class)
+    (format nil "select ~{~A~^, ~} from ~A where ~{(~A = @~A)~^ and ~};"
+	    (mapcar (lambda (slot) (slot-column-name reference-class slot))
+		    (sqlite-persistent-class-persistent-slots reference-class))
+	    (table-name reference-class)
 	    (mapcan #'list
 		    (mapcar (lambda (slot) (slot-column-name reference-class
 							     slot))
@@ -612,12 +619,7 @@
 
 (defclass object-query-input-stream
     (object-query-stream query-input-stream)
-  ((buffer :initarg :buffer :reader object-query-input-stream-buffer)))
-
-(defmethod initialize-instance :after ((instance object-query-input-stream)
-				       &rest initargs &key)
-  (declare (ignore initargs))
-  (setf (slot-value instance 'buffer) (make-array (column-count instance))))
+  ())
 
 (defmethod stream-element-type ((stream object-query-stream))
   (class-name (object-query-stream-persistent-class stream)))
@@ -641,8 +643,8 @@
 
 (defmethod read-row ((stream object-query-input-stream)
 		      &optional (eof-error-p t) eof-value)
-  (let* ((buffer (object-query-input-stream-buffer stream))
-	 (class (object-query-stream-persistent-class stream))
+  (let* ((class (object-query-stream-persistent-class stream))
+	 (buffer (sqlite-persistent-class-buffer class))
 	 (res (read-row-into-sequence buffer stream eof-error-p eof-value)))
     (if (query-input-stream-eof-p stream)
 	res
@@ -683,35 +685,22 @@
   (do* ((sql-args nil (cons el sql-args))
 	(rest args (cdr rest))
 	(el (car args) (car rest)))
-       ((or (null rest)
-	    (eq el :count) (eq el :database))
+       ((or (null rest) (eq el :count))
 	(values (nreverse sql-args)
 		rest))))
 
 (defun parse-select-args (args)
   (multiple-value-bind (sql-args keyword-args) (split-select-args args)
-    (destructuring-bind (&key count (database nil database-p))
-	keyword-args
+    (destructuring-bind (&key count) keyword-args
       (values (first sql-args)
 	      (rest sql-args)
-	      count
-	      database
-	      database-p))))
+	      count))))
 
-(defun select (class &rest args)
-  "A convenience function for SELECT."
-  (multiple-value-bind (sql-string sql-args count database database-p)
+(defun select (database class &rest args)
+  "A convenience function for PICK."
+  (multiple-value-bind (sql-string sql-args count)
       (parse-select-args args)
-    (if database-p
-	(apply #'pick database count class sql-string sql-args)
-	(apply #'pick *default-database* count class sql-string sql-args))))
-
-(define-compiler-macro select (class &rest args)
-  (multiple-value-bind (sql-string sql-args count database database-p)
-      (parse-select-args args)
-    (if database-p
-	`(pick ,database ,count ,class ,sql-string ,@sql-args)
-	`(pick *default-database* ,count ,class ,sql-string ,@sql-args))))
+    (apply #'pick database count class sql-string sql-args)))
 
 (defgeneric slot-column-name (persistent-class slot-name)
   (:method ((persistent-class symbol) slot-name)
@@ -755,13 +744,19 @@
     (let* ((class (class-of instance))
 	   (foreign-key (assoc reference-class-name (foreign-keys class))))
       (if foreign-key
-	  (car (apply #'pick database 1 reference-class-name
-		      (cdr
-		       (assoc reference-class-name
-			      (sqlite-persistent-class-foreign-key-where-strings
-			       class)))
-		      (mapcar (lambda (slot) (slot-value instance slot))
-			      (second foreign-key))))
+	  (let* ((reference-class (find-class reference-class-name))
+		 (buffer (sqlite-persistent-class-buffer reference-class)))
+	    (with-open-query
+		(q (apply
+		    #'bind-parameters
+		    (prepare database
+		     (cdr
+		      (assoc reference-class-name
+			     (sqlite-persistent-class-foreign-key-select-strings
+			      class))))
+		    (slot-values instance (second foreign-key))))
+	      (read-row-into-sequence buffer q)
+	      (make-persistent-instance reference-class buffer)))
 	  (error "No foreign key found for instance ~S~%and reference class ~A."
 		 instance reference-class-name))))
   (:method ((database database) (reference-class sqlite-persistent-class)

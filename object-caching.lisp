@@ -125,7 +125,3 @@
   (:method ((class sqlite-caching-persistent-class))
     (clrhash (object-cache class))
     (clrhash (signature-cache class))))
-
-(defmethod reference ((database database)
-		      (reference-class sqlite-caching-persistent-class)
-		      (instance sqlite-caching-persistent-object)))
