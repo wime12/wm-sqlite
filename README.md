@@ -35,10 +35,10 @@ If you open a database, prepare a statement on it and save this
 statement somewhere, this statement will still be usable even if the
 close function was called meanwhile.
 
-There is the special variable *DEFAULT-DATABASE* which can be bound to
-an open database. No (generic) function references this special
+There is the special variable \*DEFAULT-DATABASE\* which can be bound
+to an open database. No (generic) function references this special
 variable directly. They all take a database argument. But as a
-convenience, T is always a synonym for *DEFAULT-DATABASE*.
+convenience, T is always a synonym for \*DEFAULT-DATABASE\*.
 
 ### Transactions
 
@@ -50,8 +50,8 @@ and a rollback restart.
 ### Statements
 
 Statements are prepared from SQL strings. Parameters can be bound to
-the prepared statements by using the parameter template system of
-SQLTITE3 in the SQL string and subsequently the function
+prepared statements by using the parameter template system of SQLTITE3
+in the SQL string and subsequently the function
 BIND-PARAMETER. Strings, floats, integers, NIL and vectors with
 element type (UNSIGNED-BYTE 8) can be bound to statement parameters.
 
@@ -94,7 +94,7 @@ WM-SQLITE provides a metaclass for defining classes of persistent
 objects. Each persistent object corresponds to a row in a database
 table. The persistent slots of a persistent object correspond each to
 a column in a row. Persistent object classes automatically translate
-from class and slot names to the corresponding database names.
+from class and slot names to the corresponding table and column names.
 
 Many SQL features can be specified for slots like "NOT NULL", "UNIQUE"
 and if the slot belongs to the primary key of the table. Foreign keys
