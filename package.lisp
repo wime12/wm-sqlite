@@ -94,4 +94,7 @@
    ;; Object Caching
    #:sqlite-caching-persistent-class
    #:sqlite-caching-persistent-object
-   #:clear-object-cache))
+   #:clear-object-cache
+
+   ;; Autoincrement Mixin
+   #:autoincrement-mixin))

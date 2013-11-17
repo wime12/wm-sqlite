@@ -15,6 +15,7 @@
 	       (:file "ffi")
                (:file "sqlite")
 	       (:file "template")
+	       (:file "autoincrement")
 	       (:file "persistence")
 	       (:file "statement-caching")
 	       (:file "object-caching")))

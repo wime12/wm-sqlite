@@ -54,7 +54,8 @@
    (lambda (c stream)
      (princ (sqlite3-errstr (sqlite-error-code c)) stream)
      (let ((database (sqlite-error-database c)))
-       (when database
+       (when (and database (/= (sqlite-error-code c)
+			       (sqlite-error-extended-code c))) 
 	 (princ ": " stream)
 	 (princ (sqlite3-errmsg (handle database)) stream)))))
   (:documentation "A condition for errors signalled by the sqlite3 library."))
@@ -275,7 +276,7 @@ ends the transaction."
 execution of BODY has finished. Provides the restarts
 COMMIT-TRANSACTION and ROLLBACK-TRANSACTION if an
 error occurs in BODY."
-  `(let ((,database ,database))
+  `(let ((,database ,(if (eq database t) *default-database* database)))
      (begin-transaction ,database)
      (restart-case
 	 (progn

@@ -118,7 +118,9 @@
 
 (defmethod finalize-inheritance :after ((class sqlite-persistent-class))
   (unless (eq (class-name class) 'sqlite-persistent-object)
-    (initialize-persistent-class-slots class)))
+    (initialize-persistent-class-slots class))
+  (when (member (find-class 'autoincrement-mixin) (class-precedence-list class))
+    (check-autoincrement class)))
 
 (defmethod validate-superclass ((class sqlite-persistent-class)
 				(superclass standard-class))
@@ -693,7 +695,7 @@
   (:method ((database database) (class sqlite-persistent-class))
     (exec (prepare database (schema-string class))))
   (:method ((database database) (class-name symbol))
-    (create-table (find-class class-name) database)))
+    (create-table database (find-class class-name))))
 
 ;;; Reference
 
