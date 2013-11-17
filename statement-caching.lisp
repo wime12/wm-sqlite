@@ -4,6 +4,12 @@
   ((statement-cache :initform (make-hash-table :test 'equal)
 	  :accessor statement-cache)))
 
+(defgeneric clear-statement-cache (database)
+  (:method ((database (eql t)))
+    (clear-statement-cache *default-database*))
+  (:method ((database statement-caching-mixin))
+    (clrhash (statement-cache database))))
+
 (defmethod prepare ((instance statement-caching-mixin) sql
 		    &optional (length -1))
   (declare (ignore length))

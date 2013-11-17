@@ -83,7 +83,6 @@
    #:table-name
    #:slot-column-name
    #:select
-   #:pick
    #:update-record
    #:update-from-record
    #:insert-record
@@ -92,7 +91,9 @@
 
    ;; Statement Caching
    #:statement-caching-mixin
+   #:clear-statement-cache
 
    ;; Object Caching
    #:sqlite-caching-persistent-class
-   #:sqlite-caching-persistent-object))
+   #:sqlite-caching-persistent-object
+   #:clear-object-cache))

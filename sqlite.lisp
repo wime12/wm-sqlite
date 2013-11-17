@@ -518,20 +518,10 @@ Its element type is always (UNSIGNED-BYTE 8)."))
   (:method ((stream query-input-stream) index)
     (sqlite3-column-name (get-handle-and-check stream) index)))
 
-(defun column-names (stream)
-  (loop
-     for i from 0 below (column-count stream)
-     collect (column-name stream i)))
-
 (defgeneric column-type (stream index)
   (:method ((stream query-input-stream) index)
     (number-to-type
      (sqlite3-column-type (get-handle-and-check stream) index))))
-
-(defun column-types (stream)
-  (loop
-     for i from 0 below (column-count stream)
-     collect (column-type stream i)))
 
 (defun number-to-type (n)
   (ecase n
@@ -653,7 +643,9 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 	for row = (read-row in nil :eof)
 	until (eq row :eof)
 	collect row)
-     (column-names in))))
+     (loop
+	for i from 0 below (column-count in)
+	collect (column-name in i)))))
 
 
 ;;; Utilities

@@ -659,47 +659,22 @@
 
 ;;; Select
 
-(defgeneric pick (database count class sql &rest args)
-  (:method ((database (eql t)) count class sql &rest args)
-    (apply #'pick *default-database* count class sql args))
-  (:method (database count (class symbol) sql &rest args)
-    (declare (dynamic-extent args))
-    (apply #'pick database count (find-class class) sql args))
-  (:method (database count (class sqlite-persistent-class) sql &rest args)
-    (declare (dynamic-extent args))
-    (ensure-finalized class)
-    (with-open-query (s class :sql sql :database database :args args)
-      (if count
-	  (loop
-	     repeat count
-	     for result = (read-row s nil :eos)
-	     until (eq result :eos)
-	     collect result)
-	  (loop
-	     for result = (read-row s nil :eos)
-	     until (eq result :eos)
-	     collect result)))))
-
-(defun split-select-args (args)
-  (do* ((sql-args nil (cons el sql-args))
-	(rest args (cdr rest))
-	(el (car args) (car rest)))
-       ((or (null rest) (eq el :count))
-	(values (nreverse sql-args)
-		rest))))
-
-(defun parse-select-args (args)
-  (multiple-value-bind (sql-args keyword-args) (split-select-args args)
-    (destructuring-bind (&key count) keyword-args
-      (values (first sql-args)
-	      (rest sql-args)
-	      count))))
-
-(defun select (database class &rest args)
-  "A convenience function for PICK."
-  (multiple-value-bind (sql-string sql-args count)
-      (parse-select-args args)
-    (apply #'pick database count class sql-string sql-args)))
+(defgeneric select (database class &rest sql-and-args)
+  (:method ((database (eql t)) class &rest sql-and-args)
+    (declare (dynamic-extent sql-and-args))
+    (apply #'select *default-database* class sql-and-args))
+  (:method (database (class symbol) &rest sql-and-args)
+    (declare (dynamic-extent sql-and-args))
+    (apply #'select database (find-class class) sql-and-args))
+  (:method (database (class sqlite-persistent-class) &rest sql-and-args)
+    (declare (dynamic-extent sql-and-args))
+    (with-open-query (s class :sql (car sql-and-args)
+			:database database
+			:args (cdr sql-and-args))
+      (loop
+	 for result = (read-row s nil :eos)
+	 until (eq result :eos)
+	 collect result))))
 
 (defgeneric slot-column-name (persistent-class slot-name)
   (:method ((persistent-class symbol) slot-name)

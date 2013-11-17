@@ -99,20 +99,6 @@
 
 ;;; TODO: control slot-access to primary key slots in order to keep caching consistent or just alert the user never to change primary keys
 
-#+nil(defmethod update-record :after ((database database)
-				 (instance sqlite-caching-persistent-object))
-  (setf (cached-object
-	 (signature-from-instance instance)
-	 (class-of instance))
-	instance))
-
-#+nil(defmethod update-from-record :after ((database database)
-					   (instance sqlite-caching-persistent-object))
-  (setf (cached-object
-	 (signature-from-instance instance)
-	 (class-of instance))
-	instance))
-
 (defmethod delete-record :after ((database database)
 				 (instance sqlite-caching-persistent-object))
   (let ((class (class-of instance)))
@@ -124,4 +110,5 @@
     (clear-object-cache (find-class class)))
   (:method ((class sqlite-caching-persistent-class))
     (clrhash (object-cache class))
-    (clrhash (signature-cache class))))
+    (clrhash (signature-cache class))
+    nil))
