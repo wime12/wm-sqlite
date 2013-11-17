@@ -62,14 +62,14 @@ Statements are finalized automatically by the garbage collector.
 
 ### Statement cache
 
-Prepared statements are cached if STATEMENT-CACHING-MIXIN is declared
-as one of the superclasses of a database class.
+Prepared statements are cached and reused if STATEMENT-CACHING-MIXIN
+is declared as one of the superclasses of a database class.
 
 ### Query streams
 
 Querys on the database are implemented as query streams. They can be
-used like, e.g., usual file streams. The element-type of query streams
-are lists or vectors for raw row data or persistent objects.
+used like, e.g., usual file streams. The element-types of query
+streams are lists or vectors for raw row data or persistent objects.
 
 ### Blob streams
 
@@ -97,21 +97,18 @@ a column in a row. Persistent object classes automatically translate
 from class and slot names to the corresponding table and column names.
 
 Many SQL features can be specified for slots like "NOT NULL", "UNIQUE"
-and if the slot belongs to the primary key of the table. Foreign keys
-are also supported.
+and if the slot belongs to the primary key of the table. Persistent classes also support foreign keys.
 
-Database tables can automatically be created from persistent class
-definitions.
+Database tables can be created from persistent class definitions.
 
 Persistent objects allow the creation, the deletion and the update of
 records in the database. Objects which are connected by foreign keys
-to another object can easily be retrieved using the REFERENCE
-function.
+to another object can easily be retrieved.
 
 ### Caching of persistent objects
 
 To preserve the identity of persistent objects across database
-retrievals and to reduce consing, an metaclass for persistent classes
+retrievals and to reduce consing, a metaclass for persistent classes
 is defined which enables caching of persistent objects. This caching
-will not speed up queries considerably, as still database queries are
-required.
+will not speed up queries considerably, as still accesses to the
+database are required.
