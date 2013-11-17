@@ -8,14 +8,16 @@ Lisp.
 WM-SQLITE contains serveral components to provide the interface to the
 SQLITE3 library.
 
-* Databases
-* Transaction handling
-* Statements
-* Statement cache
-* Query streams
-* Blob streams
-* An SQL templating system
-* Persistent objects
-* Caching of persistent objects
+ * Databases
+ * Transactions
+ * Statements
+ * Statement cache
+ * Query streams
+ * Blob streams
+ * An SQL templating system
+ * Persistent objects
+ * Caching of persistent objects
+
+
 
 
