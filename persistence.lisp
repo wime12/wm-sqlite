@@ -459,8 +459,7 @@
 ;;; Persistent Object
 
 (defclass sqlite-persistent-object ()
-  ()
-  #+nil(:metaclass sqlite-persistent-class))
+  ())
 
 (defmethod initialize-instance :around ((class sqlite-persistent-class)
 					&rest initargs
@@ -749,7 +748,8 @@
 	    (with-open-query
 		(q (apply
 		    #'bind-parameters
-		    (prepare database
+		    (prepare
+		     database
 		     (cdr
 		      (assoc reference-class-name
 			     (sqlite-persistent-class-foreign-key-select-strings
@@ -762,6 +762,7 @@
   (:method ((database database) (reference-class sqlite-persistent-class)
 	    (instance sqlite-persistent-object))
     (reference database (class-name reference-class) instance)))
+
 
 ;;; Open Blob
 
