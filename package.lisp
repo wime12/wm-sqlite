@@ -27,13 +27,17 @@
    #:commit-transaction
    #:rollback-transaction
    #:with-transaction
-   
+      
    ;; Statement
    #:statement
    #:prepare
    #:bind-parameter
    #:clear-bindings
    #:exec
+   
+   ;; Statement Caching
+   #:statement-caching-mixin
+   #:clear-statement-cache
  
    ;; Blob Stream
    #:zeroblob
@@ -86,10 +90,6 @@
    #:insert-record
    #:delete-record
    #:reference
-
-   ;; Statement Caching
-   #:statement-caching-mixin
-   #:clear-statement-cache
 
    ;; Object Caching
    #:sqlite-caching-persistent-class
