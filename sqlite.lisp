@@ -133,7 +133,8 @@ necessary. :READ-WRITE-CREATE is the default."
 has been executed or if an error occurs in BODY. The first argument
 is the name of the database by which the database can be referred to
 in BODY. The other arguments are like those of OPEN-DATABASE."
-  `(let ((,db (open-database ,filename :mode ,mode :class ,class)))
+  `(let ((,(if (eq db t) '*default-database* db)
+	  (open-database ,filename :mode ,mode :class ,class)))
      (unwind-protect
 	  (progn ,@body)
        (close-database ,db))))
@@ -624,28 +625,28 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 
 ;;; Convenience
 
-(defmacro with-database ((filename) &body body)
-  `(with-open-database (*default-database* ,filename)
-     ,@body))
-
 (defmethod prepare ((database (eql t)) sql &optional (length -1))
   (prepare *default-database* sql length))
 
 (defmethod close-database ((database (eql t)))
   (close-database *default-database*))
 
-(defun query (sql &rest args)
-  (with-open-query (in (apply #'bind-parameters
-			      (prepare *default-database* sql)
-			      args))
-    (values
-     (loop
-	for row = (read-row in nil :eof)
-	until (eq row :eof)
-	collect row)
-     (loop
-	for i from 0 below (column-count in)
-	collect (column-name in i)))))
+(defgeneric query (database sql &rest args)
+  (:method ((database (eql t)) sql &rest args)
+    (declare (dynamic-extent args))
+    (apply #'query *default-database* sql args))
+  (:method ((database database) sql &rest args)
+    (declare (dynamic-extent args))
+    (with-open-query (in
+		      (apply #'bind-parameters (prepare database sql) args))
+      (values
+       (loop
+	  for row = (read-row in nil :eof)
+	  until (eq row :eof)
+	  collect row)
+       (loop
+	  for i from 0 below (column-count in)
+	  collect (column-name in i))))))
 
 
 ;;; Utilities

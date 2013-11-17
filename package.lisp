@@ -18,6 +18,7 @@
    #:sqlite-error-extended-code
    
    ;; Database
+   #:*default-database*
    #:database
    #:open-database
    #:close-database
@@ -58,10 +59,6 @@
    #:column-name
    #:column-type
    #:column-count
-
-   ;; Convenience
-   #:*default-database*
-   #:with-database
    #:query
 
    ;; Templates
