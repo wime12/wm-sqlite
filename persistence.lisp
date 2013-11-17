@@ -519,6 +519,11 @@
       (assert (= (changes database) 1) ()  "Update failed for ~S." object))
     object))
 
+(define-compiler-macro update-record (&whole form database persistent-object)
+  (if (eq database 't)
+      `(update-record *default-database* ,persistent-object)
+      form))
+
 (defun slot-values (object slot-names)
   (mapcar
    (lambda (slot-name)
@@ -552,6 +557,12 @@
 	   (read-row s))))
     object))
 
+(define-compiler-macro update-from-record
+    (&whole form database persistent-object)
+  (if (eq database 't)
+      `(update-from-record *default-database* ,persistent-object)
+      form))
+
 (defgeneric insert-record (database persistent-object)
   (:method ((database (eql t)) persistent-object)
     (insert-record *default-database* persistent-object))
@@ -563,6 +574,11 @@
 		   (slot-values object
 				(sqlite-persistent-class-persistent-slots class)))))
     object))
+
+(define-compiler-macro insert-record (&whole form database persistent-object)
+  (if (eq database 't)
+      `(insert-record *default-database* ,persistent-object)
+      form))
 
 (defgeneric delete-record (database persistent-object)
   (:method ((database (eql t)) persistent-object)
@@ -580,6 +596,11 @@
       (assert (= (changes database) 1) ()
 	      "Deletion of ~S failed." object))
     object))
+
+(define-compiler-macro delete-record (&whole form database persistent-object)
+  (if (eq database 't)
+      `(delete-record *default-database* ,persistent-object)
+      form))
 
 (defmethod table-name ((instance sqlite-persistent-object))
   (table-name (class-of instance)))
@@ -678,6 +699,11 @@
 	 until (eq result :eos)
 	 collect result))))
 
+(define-compiler-macro select (&whole form database class &rest sql-and-args)
+  (if (eq database 't)
+      `(select *default-database* ,class ,@sql-and-args)
+      form))
+
 (defgeneric slot-column-name (persistent-class slot-name)
   (:method ((persistent-class symbol) slot-name)
     (slot-column-name (find-class persistent-class) slot-name))
@@ -696,6 +722,11 @@
     (exec (prepare database (schema-string class))))
   (:method ((database database) (class-name symbol))
     (create-table database (find-class class-name))))
+
+(define-compiler-macro create-table (&whole form database persistent-class)
+  (if (eq database 't)
+      `(create-table *default-database* ,persistent-class)
+      form))
 
 ;;; Reference
 
@@ -740,6 +771,10 @@
 	    (instance sqlite-persistent-object))
     (reference database (class-name reference-class) instance)))
 
+(define-compiler-macro reference (&whole form database reference-class instance)
+  (if (eq database 't)
+      `(reference *default-database ,reference-class ,instance)
+      form))
 
 ;;; Open Blob
 

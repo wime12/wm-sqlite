@@ -425,6 +425,13 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 	(sqlite-error () nil))
       (make-blob-stream database table column row database-name direction))))
 
+(define-compiler-macro open-blob (&whole form database table column row
+					 &key database-name direction)
+  (if (eq database 't)
+      `(open-blob *default-database* ,table ,column ,row
+		  :database-name ,database-name :direction ,direction)
+      form))
+
 (defun make-blob-stream (database table column row database-name direction)
   (multiple-value-bind (handle errcode)
       (sqlite3-blob-open (get-handle-and-check database) database-name
@@ -629,8 +636,18 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 (defmethod prepare ((database (eql t)) sql &optional (length -1))
   (prepare *default-database* sql length))
 
+(define-compiler-macro prepare (&whole form database sql &optional (length -1))
+  (if (eq database 't)
+      `(prepare *default-database* ,sql ,length)
+      form))
+
 (defmethod close-database ((database (eql t)))
   (close-database *default-database*))
+
+(define-compiler-macro close-database (&whole form database)
+  (if (eq database 't)
+      `(close-database *default-database*)
+      form))
 
 (defgeneric query (database sql &rest args)
   (:method ((database (eql t)) sql &rest args)
@@ -649,6 +666,10 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 	  for i from 0 below (column-count in)
 	  collect (column-name in i))))))
 
+(define-compiler-macro query (&whole form database sql &rest args)
+  (if (eq database 't)
+      `(query *default-database* ,sql ,@args)
+      form))
 
 ;;; Utilities
 
@@ -658,8 +679,18 @@ Its element type is always (UNSIGNED-BYTE 8)."))
   (:method ((database database))
     (sqlite3-last-insert-rowid (handle database))))
 
+(define-compiler-macro last-insert-rowid (&whole form database)
+  (if (eq database 't)
+      `(last-insert-rowid *default-database*)
+      form))
+
 (defgeneric changes (database)
   (:method ((databse (eql t)))
     (changes *default-database*))
   (:method ((database database))
     (sqlite3-changes (handle database))))
+
+(define-compiler-macro changes (&whole form database)
+  (if (eq database 't)
+      `(changes *default-database*)
+      form))
