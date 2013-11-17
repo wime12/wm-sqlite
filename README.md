@@ -25,6 +25,7 @@ SQLITE3 library.
  * An SQL templating system
  * Persistent objects
  * Caching of persistent objects
+ * Autoincrement mixin
  
 ### Databases
 
@@ -112,3 +113,11 @@ retrievals and to reduce consing, a metaclass for persistent classes
 is defined which enables caching of persistent objects. This caching
 will not speed up queries considerably, as still accesses to the
 database are required.
+
+### Autoincrement mixin
+
+For classes with a single slot declared as integer autoincrement
+primary key, the autoincrement mixin may be defined as superclass. If
+this primary slot is NIL and the object is inserted into the database,
+the value of the slot will automatically be set to the value of
+LAST-INSERT-ROWID.
