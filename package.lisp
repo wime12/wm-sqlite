@@ -13,6 +13,7 @@
   (:export
    ;; Error
    #:sqlite-error
+   #:sqlite-constraint-error
    #:sqlite-error-code
    #:sqlite-error-extended-code
    
