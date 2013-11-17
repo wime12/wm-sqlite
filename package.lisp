@@ -30,11 +30,9 @@
    #:statement
    #:prepare
    #:bind-parameter
-   #:bind-parameters
    #:clear-bindings
    #:exec
-   #:last-insert-rowid
-
+ 
    ;; Blob Stream
    #:zeroblob
    #:blob-stream
@@ -57,9 +55,7 @@
    #:read-row-into-sequence
    #:read-row-column
    #:column-name
-   #:column-names
    #:column-type
-   #:column-types
    #:column-count
 
    ;; Convenience
@@ -98,4 +94,5 @@
    #:statement-caching-mixin
 
    ;; Object Caching
-   #:sqlite-caching-persistent-class))
+   #:sqlite-caching-persistent-class
+   #:sqlite-caching-persistent-object))
