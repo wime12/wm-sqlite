@@ -568,11 +568,12 @@
     (insert-record *default-database* persistent-object))
   (:method ((database database) (object sqlite-persistent-object))
     (let ((class (class-of object)))
-      (exec (apply #'bind-parameters
-		   (prepare database
-			    (sqlite-persistent-class-insert-record-string class))
-		   (slot-values object
-				(sqlite-persistent-class-persistent-slots class)))))
+      (exec
+       (apply #'bind-parameters
+	      (prepare database
+		       (sqlite-persistent-class-insert-record-string class))
+	      (slot-values object
+			   (sqlite-persistent-class-persistent-slots class)))))
     object))
 
 (define-compiler-macro insert-record (&whole form database persistent-object)
@@ -691,6 +692,7 @@
     (apply #'select database (find-class class) sql-and-args))
   (:method (database (class sqlite-persistent-class) &rest sql-and-args)
     (declare (dynamic-extent sql-and-args))
+    (ensure-finalized class)
     (with-open-query (s class :sql (car sql-and-args)
 			:database database
 			:args (cdr sql-and-args))
@@ -773,7 +775,7 @@
 
 (define-compiler-macro reference (&whole form database reference-class instance)
   (if (eq database 't)
-      `(reference *default-database ,reference-class ,instance)
+      `(reference *default-database* ,reference-class ,instance)
       form))
 
 ;;; Open Blob
