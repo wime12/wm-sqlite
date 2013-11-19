@@ -480,7 +480,8 @@ Its element type is always (UNSIGNED-BYTE 8)."))
       (print-unreadable-object (instance stream :type t :identity t)
 	(prin1 :closed stream))))
 
-(defmethod initialize-instance :after ((instance query-stream) &rest initargs &key)
+(defmethod initialize-instance :after ((instance query-stream)
+				       &rest initargs &key)
   (declare (ignore initargs))
   (setf (slot-value instance 'handle) (handle (query-stream-statement instance))))
 
@@ -500,9 +501,13 @@ Its element type is always (UNSIGNED-BYTE 8)."))
 (defclass query-input-vector-stream (query-input-stream)
   ())
 
+(defclass query-input-values-stream (query-input-stream)
+  ())
+
 (defgeneric open-query (statement &key &allow-other-keys)
   (:method ((statement statement) &key (element-type 'list))
     (make-instance (ecase element-type
+		     (values 'query-input-values-stream)
 		     (list 'query-input-list-stream)
 		     (vector 'query-input-vector-stream))
 		   :statement statement)))
@@ -541,6 +546,16 @@ Its element type is always (UNSIGNED-BYTE 8)."))
     (#.+sqlite-null+ :null)))
 
 (defgeneric read-row (stream &optional eof-error-p eof-value)
+  (:method ((stream query-input-values-stream)
+	    &optional (eof-error-p t) eof-value)
+    (with-slots (column-count) stream
+      (let ((handle (get-handle-and-check stream)))
+	(values-list
+	 (generic-read-row stream handle eof-error-p eof-value
+			   (lambda ()
+			     (loop
+				for i from 0 below column-count
+				collect (get-column handle i))))))))
   (:method ((stream query-input-list-stream)
 	    &optional (eof-error-p t) eof-value)
     (with-slots (column-count) stream
