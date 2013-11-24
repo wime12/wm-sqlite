@@ -563,18 +563,18 @@
       `(update-from-record *default-database* ,persistent-object)
       form))
 
-(defgeneric insert-record (database persistent-object)
-  (:method ((database (eql t)) persistent-object)
-    (insert-record *default-database* persistent-object))
-  (:method ((database database) (object sqlite-persistent-object))
-    (let ((class (class-of object)))
+(defmethod insert-record ((database (eql t)) persistent-object)
+  (insert-record *default-database* persistent-object))
+
+(defmethod insert-record ((database database) (object sqlite-persistent-object))
+  (let ((class (class-of object)))
       (exec
        (apply #'bind-parameters
 	      (prepare database
 		       (sqlite-persistent-class-insert-record-string class))
 	      (slot-values object
 			   (sqlite-persistent-class-persistent-slots class)))))
-    object))
+  object)
 
 (define-compiler-macro insert-record (&whole form database persistent-object)
   (if (eq database 't)

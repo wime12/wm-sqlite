@@ -21,7 +21,7 @@
       (error "Cannot use autoincrement-mixin: primary key slot of ~S is not declared as :autoincrement." class))))
 
 (defgeneric insert-record (database instance)
-  (:method ((database database) (instance autoincrement-mixin))
+  (:method :around ((database database) (instance autoincrement-mixin))
     (call-next-method)
     (let ((id-slot (car (primary-key (class-of instance)))))
       (unless (slot-value instance id-slot)

@@ -3,8 +3,6 @@
 
 (in-package #:wm-sqlite)
 
-(declaim (optimize (speed 3) (space 0)))
-
 
 ;;; Wrapper
 

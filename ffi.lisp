@@ -5,7 +5,7 @@
 
 (define-foreign-library sqlite3
   (:windows "sqlite3.dll")
-  (:darwin "/usr/local/Cellar/sqlite/3.8.0.2/lib/libsqlite3.dylib")
+  (:darwin "/usr/local/Cellar/sqlite/3.8.1/lib/libsqlite3.dylib")
   (t (:default "libsqlite3")))
 
 (use-foreign-library sqlite3)
