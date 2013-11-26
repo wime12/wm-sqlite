@@ -649,6 +649,7 @@
 
 (defmethod open-query ((object-class sqlite-persistent-class)
 		       &key sql (database *default-database*) args)
+  (ensure-finalized object-class)
   (make-instance
    'object-query-input-stream
    :statement (apply #'bind-parameters
